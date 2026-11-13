@@ -1,0 +1,13 @@
+import {test,before,after} from 'node:test';
+import assert from 'node:assert/strict';
+import {server} from './server.mjs';
+let base;
+before(async()=>{await new Promise(r=>server.listen(0,'127.0.0.1',r));base=`http://127.0.0.1:${server.address().port}`;});
+after(()=>new Promise(r=>server.close(r)));
+test('homepage and application assets are served',async()=>{for(const [path,type] of [['/','text/html'],['/app.js','text/javascript'],['/style.css','text/css']]){const r=await fetch(base+path);assert.equal(r.status,200);assert.ok(r.headers.get('content-type').startsWith(type));}});
+test('invalid page input never reaches provider',async()=>{for(const page of ['0','-1','abc','1.5','10001']){const r=await fetch(`${base}/api/recent-anime?page=${page}`);assert.equal(r.status,400);assert.equal((await r.json()).ok,false);}});
+test('search rejects empty, too short, and oversized queries',async()=>{for(const query of ['','f','x'.repeat(101)])assert.equal((await fetch(base+'/api/search?q='+query)).status,400);});
+test('dashboard rankings validate periods before querying upstream',async()=>{for(const period of ['year','all','DAY'])assert.equal((await fetch(base+'/api/top-anime?period='+period)).status,400);assert.equal((await fetch(base+'/dashboard.js')).status,200);});
+test('schedule and page size validation reject invalid requests',async()=>{for(const path of ['/api/schedule?date=2026-02-30','/api/schedule?view=year','/api/anime-schedule?series=bad','/api/recent-anime?per_page=0','/api/recent-anime?per_page=31'])assert.equal((await fetch(base+path)).status,400);assert.equal((await fetch(base+'/schedule.js')).status,200);});
+test('unknown endpoints and unsupported methods are rejected',async()=>{assert.equal((await fetch(base+'/api/proxy?url=https://example.com')).status,404);assert.equal((await fetch(base+'/server.mjs')).status,404);assert.equal((await fetch(base+'/api/series/nope')).status,404);assert.equal((await fetch(base+'/',{method:'POST'})).status,405);});
+test('only playback endpoint is exposed and invalid input is rejected',async()=>{for(const path of ['/api/providers','/api/provider-test','/provider-lab.js'])assert.equal((await fetch(base+path)).status,404);for(const query of ['series=-1&episode=1','series=1642&episode=-1','series=abc&episode=1'])assert.equal((await fetch(base+'/api/playback?'+query)).status,400);assert.equal((await fetch(base+'/api/media/'+'0'.repeat(48))).status,410);assert.equal((await fetch(base+'/player.js')).status,200);assert.equal((await fetch(base+'/vendor/hls.min.js')).status,200);});

@@ -1,0 +1,28 @@
+{
+  "name": "hoshivo",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/start-local.mjs",
+    "dev": "node scripts/start-local.mjs",
+    "setup:providers": "node scripts/setup-providers.mjs",
+    "test": "node --test server.test.mjs playback.test.mjs skip.test.mjs schedule.test.mjs",
+    "test:browser": "node scripts/browser-smoke.mjs",
+    "test:search": "node scripts/search-smoke.mjs",
+    "test:skip": "node scripts/skip-smoke.mjs",
+    "test:keyboard": "node scripts/keyboard-smoke.mjs",
+    "test:dashboard": "node scripts/dashboard-smoke.mjs",
+    "test:schedule": "node scripts/schedule-smoke.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "hls.js": "^1.7.4",
+    "linkedom": "^0.18.15"
+  },
+  "devDependencies": {
+    "playwright": "^1.65.0"
+  }
+}
