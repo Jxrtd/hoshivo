@@ -15,3 +15,12 @@
 .video-controls{transition:opacity .2s ease,visibility .2s ease}.video-controls.controls-hidden{opacity:0;visibility:hidden;pointer-events:none}.player.controls-idle,.player.controls-idle>video{cursor:none}
 
 .video-controls .video-control-button,.video-controls .video-time,.video-controls .video-chapter-legend{text-shadow:0 1px 4px #000,0 1px 2px #000}.video-controls select{background:#1c2332;text-shadow:none}.video-controls select option{background:#151923;color:#e5ecf7}
+@media(max-width:800px){
+  .watch-layout>.playback-column{display:contents}
+  .watch-layout .playback-toolbar{grid-row:1}
+  .watch-layout #player{grid-row:2}
+  .watch-layout .player-controls{grid-row:3}
+  .watch-layout>.episode-panel{grid-row:4}
+  .watch-layout .playback-column>.player-note{grid-row:5}
+  .watch-layout #anime-schedule{grid-row:6}
+}
