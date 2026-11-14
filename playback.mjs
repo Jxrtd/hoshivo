@@ -8,7 +8,13 @@ export function chooseMatch(candidates,anime){
 }
 async function sdk(path,signal){
   let response;try{response=await fetch('http://127.0.0.1:3031'+path,{signal});}catch(e){throw new Error(e.name==='TimeoutError'?'The video source timed out. Please retry.':'The video service is unavailable. Start the app with npm start.');}
-  const data=await response.json();if(!response.ok||data.error)throw new Error(String(data.error||'Unable to load video.').slice(0,300));return data;
+  const data=await response.json();
+  if(!response.ok||data.error){
+    const stage=path.split('?')[0].slice(1),detail=String(data.error||'Unable to load video.').slice(0,300);
+    console.error(`[playback] AnimeParadise ${stage}: HTTP ${response.status}: ${detail}`);
+    throw new Error(/timed?\s*out|timeout/i.test(detail)?`AnimeParadise ${stage} request timed out from this server. Please retry.`:detail);
+  }
+  return data;
 }
 export async function resolveEpisode(anime,episode,refresh=false){
   const key=[anime.id,episode.number].join(':'),hit=cache.get(key);
@@ -18,10 +24,10 @@ export async function resolveEpisode(anime,episode,refresh=false){
     const signal=AbortSignal.timeout(60000);
     const results=anime.source_id?[]:await sdk('/search?provider=animeparadise&q='+encodeURIComponent(anime.title),signal);
     const match=anime.source_id?{id:anime.source_id}:chooseMatch(Array.isArray(results)?results:[],anime);
-    if(!match)throw new Error('This anime is not available on AnimeParadise yet.');
+    if(!match)throw new Error('No matching AnimeParadise title was found. Try opening this anime from Search.');
     const episodes=await sdk('/content?provider=animeparadise&mediaId='+encodeURIComponent(match.id),signal);
     const unit=episodes.find(e=>Number(e.number)===Number(episode.number));
-    if(!unit)throw new Error('This episode is not available on AnimeParadise yet.');
+    if(!unit)throw new Error('AnimeParadise did not return this episode in its episode list.');
     const [resolved,skip]=await Promise.all([sdk('/stream?provider=animeparadise&unitId='+encodeURIComponent(unit.id)+'&language=sub',signal),loadSkipData(unit.id,signal)]);
     let lastError;
     for(const stream of (resolved.streams||[]).slice(0,3)){
