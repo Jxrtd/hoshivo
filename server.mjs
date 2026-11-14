@@ -33,8 +33,7 @@ export async function api(path){
 export const server=http.createServer(async(req,res)=>{
   res.setHeader('X-Content-Type-Options','nosniff');
   res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');
-  const mediaHead=req.method==='HEAD'&&/^\/api\/media\/[a-f0-9]{48}(?:\?|$)/.test(req.url);
-  if(req.method!=='GET'&&!mediaHead){res.writeHead(405,{'Allow':'GET'});res.end();return;}
+  if(req.method!=='GET'){res.writeHead(405,{'Allow':'GET'});res.end();return;}
   try{
     const url=new URL(req.url,'http://localhost');
     if(url.pathname==='/healthz'){
@@ -83,11 +82,11 @@ export const server=http.createServer(async(req,res)=>{
     if(url.pathname==='/vendor/hls.min.js'){
       const content=await readFile(new URL('./node_modules/hls.js/dist/hls.min.js',import.meta.url));res.writeHead(200,{'Content-Type':'text/javascript; charset=utf-8','Cache-Control':'public, max-age=86400'});res.end(content);return;
     }
-    const files={'/':'index.html','/index.html':'index.html','/app.js':'app.js','/dashboard.js':'dashboard.js','/schedule.js':'schedule.js','/player.js':'player.js','/video-controls.js':'video-controls.js','/skip.js':'skip.js','/style.css':'style.css','/favicon.svg':'favicon.svg'};
+    const files={'/':'index.html','/index.html':'index.html','/app.js':'app.js','/dashboard.js':'dashboard.js','/schedule.js':'schedule.js','/player.js':'player.js','/video-controls.js':'video-controls.js','/skip.js':'skip.js','/style.css':'style.css'};
     const file=files[url.pathname];
     if(!file){res.writeHead(404);res.end('Not found');return;}
     const content=await readFile(resolve(root,file));
-    res.writeHead(200,{'Content-Type':{'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml'}[extname(file)]});res.end(content);
+    res.writeHead(200,{'Content-Type':{'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8'}[extname(file)]});res.end(content);
   }catch(error){json(res,error.status||502,{ok:false,error:error.message||'Unable to load data.'});}
 });
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){

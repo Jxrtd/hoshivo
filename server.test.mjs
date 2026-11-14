@@ -4,7 +4,6 @@ import {server} from './server.mjs';
 let base;
 before(async()=>{await new Promise(r=>server.listen(0,'127.0.0.1',r));base=`http://127.0.0.1:${server.address().port}`;});
 after(()=>new Promise(r=>server.close(r)));
-test('media header probes are allowed without exposing HEAD on other routes',async()=>{assert.equal((await fetch(base+'/api/media/'+'0'.repeat(48),{method:'HEAD'})).status,410);assert.equal((await fetch(base+'/server.mjs',{method:'HEAD'})).status,405);});
 test('homepage and application assets are served',async()=>{for(const [path,type] of [['/','text/html'],['/app.js','text/javascript'],['/style.css','text/css']]){const r=await fetch(base+path);assert.equal(r.status,200);assert.ok(r.headers.get('content-type').startsWith(type));}});
 test('invalid page input never reaches provider',async()=>{for(const page of ['0','-1','abc','1.5','10001']){const r=await fetch(`${base}/api/recent-anime?page=${page}`);assert.equal(r.status,400);assert.equal((await r.json()).ok,false);}});
 test('search rejects empty, too short, and oversized queries',async()=>{for(const query of ['','f','x'.repeat(101)])assert.equal((await fetch(base+'/api/search?q='+query)).status,400);});

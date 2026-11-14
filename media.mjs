@@ -50,26 +50,13 @@ export function rewriteManifest(text,base,wrap){
   }).join('\n');
 }
 export function looksLikeHtml(bytes){return /^\s*(?:<!doctype\s+html|<html\b|<head\b|<body\b|<script\b|<\?xml|<Error\b|<!--)/i.test(Buffer.from(bytes).subarray(0,512).toString('utf8'));}
-export function mediaContentType(bytes,declared){
-  // Native mobile HLS can reject TS segments mislabeled as JPEG or HTML.
-  // Require repeated 188-byte packet syncs so keys/images are not relabeled.
-  if(bytes.length>=189&&bytes[0]===0x47&&bytes[188]===0x47&&(bytes.length<377||bytes[376]===0x47))return 'video/mp2t';
-  return declared.includes('text/html')?'application/octet-stream':declared;
-}
-export function byteRange(value,length){
-  const match=/^bytes=(\d*)-(\d*)$/.exec(value);
-  if(!match||(!match[1]&&!match[2])||length<=0)return null;
-  const suffix=!match[1],first=suffix?Math.max(0,length-Number(match[2])):Number(match[1]),last=suffix||!match[2]?length-1:Math.min(length-1,Number(match[2]));
-  if(!Number.isSafeInteger(first)||!Number.isSafeInteger(last)||first>last||first>=length||(suffix&&Number(match[2])===0))return null;
-  return {first,last};
-}
 export async function relayMedia(req,res,token){
   const entry=tickets.get(token);
   if(!entry||entry.expires<Date.now()){res.writeHead(410);res.end('Media link expired. Test this provider again.');return;}
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),30000);
   res.on('close',()=>controller.abort());
   try{
-    const headers={...entry.headers};if(req.method!=='HEAD'&&req.headers.range&&/^bytes=(?:\d+-\d*|-\d+)$/.test(req.headers.range))headers.Range=req.headers.range;
+    const headers={...entry.headers};if(req.headers.range&&/^bytes=\d*-\d*$/.test(req.headers.range))headers.Range=req.headers.range;
     // Range is the only viewer-supplied upstream header.
     const u=await validateTarget(entry.url);
     const upstream=headers.Range?await fetchPublicRange(u.href,headers,controller.signal):await fetchPublic(u.href,entry.headers,controller.signal);
@@ -77,24 +64,14 @@ export async function relayMedia(req,res,token){
     let ct=upstream.headers.get('content-type')||'application/octet-stream';
     if(/mpegurl/i.test(ct)||/\.m3u8(?:\?|$)/i.test(upstream.url)){
       const text=(await readLimited(upstream)).toString('utf8');if(!text.trimStart().startsWith('#EXTM3U'))throw new Error('Provider did not return an HLS playlist.');
-      const body=Buffer.from(rewriteManifest(text,upstream.url,url=>issueMedia(url,entry.headers))),range=headers.Range?byteRange(headers.Range,body.length):null;
-      if(headers.Range&&!range){res.writeHead(416,{'Content-Range':`bytes */${body.length}`});res.end();return;}
-      res.writeHead(range?206:200,{'Content-Type':'application/vnd.apple.mpegurl','Cache-Control':'no-store','Accept-Ranges':'bytes','Content-Length':range?range.last-range.first+1:body.length,...(range?{'Content-Range':`bytes ${range.first}-${range.last}/${body.length}`}:{})});res.end(req.method==='HEAD'?undefined:range?body.subarray(range.first,range.last+1):body);return;
-    }
-    if(headers.Range&&upstream.status===200){
-      // Some segment hosts ignore Range. Native iPhone playback probes bytes=0-1
-      // and needs a real 206 response. Bound buffering to avoid unbounded files.
-      const bytes=await readLimited(upstream,32*1024*1024),range=byteRange(headers.Range,bytes.length);
-      if(!bytes.length||looksLikeHtml(bytes))throw new Error('Provider returned an empty response or HTML page instead of media.');
-      if(!range){res.writeHead(416,{'Content-Range':`bytes */${bytes.length}`});res.end();return;}
-      res.writeHead(206,{'Content-Type':mediaContentType(bytes,ct),'Content-Range':`bytes ${range.first}-${range.last}/${bytes.length}`,'Content-Length':range.last-range.first+1,'Accept-Ranges':'bytes','Cache-Control':'no-store'});
-      res.end(bytes.subarray(range.first,range.last+1));return;
+      const body=rewriteManifest(text,upstream.url,url=>issueMedia(url,entry.headers));res.writeHead(200,{'Content-Type':'application/vnd.apple.mpegurl','Cache-Control':'no-store'});res.end(body);return;
     }
     const reader=upstream.body.getReader(),first=await reader.read();
     if(first.done||looksLikeHtml(first.value)){await reader.cancel();res.writeHead(502);res.end('Provider returned an empty response or HTML page instead of media.');return;}
-    ct=mediaContentType(first.value,ct);
+    // Some AnimeParadise segments contain valid MPEG-TS bytes but are labelled
+    // text/html by the CDN. Inspect the bytes rather than dropping those segments.
+    if(ct.includes('text/html'))ct=first.value[0]===0x47?'video/mp2t':'application/octet-stream';
     const out={'Content-Type':ct,'Cache-Control':'no-store'};for(const name of ['content-length','content-range','accept-ranges']){const value=upstream.headers.get(name);if(value&&!(name==='content-length'&&upstream.headers.get('content-encoding')))out[name]=value;}
-    if(req.method==='HEAD'){await reader.cancel();res.writeHead(200,out);res.end();return;}
     async function* chunks(){try{yield first.value;while(true){const part=await reader.read();if(part.done)break;yield part.value;}}finally{await reader.cancel().catch(()=>{});}}
     res.writeHead(upstream.status,out);await new Promise((done,fail)=>{const body=Readable.from(chunks());body.on('error',fail);body.on('end',done);res.on('close',done);body.pipe(res);});
   }catch(error){if(!res.headersSent){res.writeHead(502);res.end(error.message);}else res.destroy();}finally{clearTimeout(timer);}
