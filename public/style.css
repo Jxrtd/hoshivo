@@ -15,6 +15,10 @@
 .video-controls{transition:opacity .2s ease,visibility .2s ease}.video-controls.controls-hidden{opacity:0;visibility:hidden;pointer-events:none}.player.controls-idle,.player.controls-idle>video{cursor:none}
 
 .video-controls .video-control-button,.video-controls .video-time,.video-controls .video-chapter-legend{text-shadow:0 1px 4px #000,0 1px 2px #000}.video-controls select{background:#1c2332;text-shadow:none}.video-controls select option{background:#151923;color:#e5ecf7}
+body.player-fullscreen-open{overflow:hidden}
+.player.mobile-fullscreen{position:fixed;inset:0;z-index:10000;width:100vw;height:100dvh;max-width:none;max-height:none;aspect-ratio:auto;border:0;border-radius:0;background:#000}
+.player.mobile-fullscreen>video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+.player.mobile-fullscreen>.video-controls{padding-bottom:max(12px,env(safe-area-inset-bottom));padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}
 @media(max-width:800px){
   .watch-layout>.playback-column{display:contents}
   .watch-layout .playback-toolbar{grid-row:1}

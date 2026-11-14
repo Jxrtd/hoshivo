@@ -82,7 +82,7 @@ export async function setEpisode({anime,episode,resumeAt=0,onProgress}){
     if(active&&settings[active.kind]&&manualSkipOverride!==active.kind&&hasPlayed&&!video.paused&&!video.seeking)performSkip(active);
   }
   video.addEventListener('timeupdate',updateSkips);video.addEventListener('seeked',updateSkips);video.addEventListener('loadedmetadata',updateSkips);
-  const fail=text=>{if(!alive())return;clear();failed=true;overlay.hidden=false;button.disabled=false;button.textContent='Reload video';hint.textContent=text;status.textContent=text;};
+  const fail=text=>{if(!alive())return;clear();failed=true;overlay.hidden=true;status.textContent=text;};
   const loading=()=>{if(!alive())return;clear();overlay.hidden=hasPlayed;if(!hasPlayed){button.disabled=true;button.textContent='Loading video…';hint.textContent='Waiting for video data.';}status.textContent=hasPlayed?'Buffering…':'Loading video…';timer=setTimeout(()=>fail('The stream did not start within 20 seconds. Reload the video to try again.'),20000);};
   button.onclick=async()=>{if(failed){retry();return;}loading();try{await video.play();}catch(e){if(!alive()||e.name==='AbortError')return;if(e.name==='NotAllowedError'){clear();overlay.hidden=false;button.disabled=false;button.textContent='▶ Play episode';hint.textContent='Press Play again to allow playback.';}else fail(`Playback could not start: ${e.message}`);}};
   video.addEventListener('loadedmetadata',()=>{if(video.dataset.engine==='native'&&resumeAt>0&&Number.isFinite(video.duration)&&resumeAt<video.duration-5)video.currentTime=resumeAt;});
