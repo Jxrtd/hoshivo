@@ -4,7 +4,7 @@ import {fileURLToPath} from 'node:url';
 import {resolve,extname} from 'node:path';
 import {resolveEpisode} from './playback.mjs';
 import {relayMedia} from './media.mjs';
-import {searchAnime,paradiseSeries} from './paradise.mjs';
+import {searchAnime,paradiseSeries,recentAnime} from './paradise.mjs';
 import {topAnime,PERIODS} from './rankings.mjs';
 import {manilaDate,validDate,releaseSchedule,animeRelease} from './schedule.mjs';
 const root=fileURLToPath(new URL('./public/',import.meta.url));
@@ -74,7 +74,7 @@ export const server=http.createServer(async(req,res)=>{
       const page=Number(url.searchParams.get('page')||1);
       const perPage=Number(url.searchParams.get('per_page')||30);
       if(!Number.isSafeInteger(page)||page<1||page>10000||!Number.isSafeInteger(perPage)||perPage<1||perPage>30)return json(res,400,{ok:false,error:'Invalid page or page size.'});
-      return json(res,200,await api(`/recent-anime?page=${page}&per_page=${perPage}`));
+      return json(res,200,await recentAnime(page,perPage));
     }
     const seriesMatch=url.pathname.match(/^\/api\/series\/([1-9]\d*|ap-[a-zA-Z0-9_-]{1,160})$/);
     if(seriesMatch)return json(res,200,seriesMatch[1].startsWith('ap-')?await paradiseSeries(seriesMatch[1].slice(3)):await api(url.pathname.slice(4)));

@@ -2,6 +2,8 @@
 
 Anime browsing with AnimeParadise playback, a watchlist, and Recently watched.
 
+The homepage latest-episodes feed comes directly from AnimeParadise and opens provider-native titles. Rankings and schedules can use other catalogs; playback matches those entries using catalog IDs and alternate titles while checking release years to avoid selecting a sequel.
+
 ## Run
 
 Install Node.js 22+ and Git, then:

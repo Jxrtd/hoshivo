@@ -1,7 +1,17 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {chooseMatch} from './playback.mjs';
+import {findMatch} from './matching.mjs';
 import {isPublicAddress,validateTarget,rewriteManifest,looksLikeHtml} from './media.mjs';
+test('catalog matching retries alternate names and recognizes provider aliases',async()=>{
+  const queries=[];const match=await findMatch({title:'Frieren: Beyond Journey’s End',alternative:'Sousou no Frieren',year:2023},async q=>{queries.push(q);return q==='Sousou no Frieren'?[{source_id:'animeparadise:correct',title:'Different English Label',alternative:'Sousou no Frieren',year:2023}]:[];});
+  assert.equal(match.source_id,'animeparadise:correct');assert.deepEqual(queries,['Frieren: Beyond Journey’s End','Sousou no Frieren']);
+});
+test('catalog IDs identify renamed titles and conflicting IDs reject a match',()=>{
+  assert.equal(chooseMatch([{title:'Renamed title',ani_id:123,year:2025}],{title:'Original title',ani_id:'123',year:2026})?.title,'Renamed title');
+  assert.equal(chooseMatch([{title:'Same Title',mal_id:2}],{title:'Same Title',mal_id:1}),undefined);
+  assert.equal(chooseMatch([{title:'別の作品'}],{title:'葬送のフリーレン'}),undefined);
+});
 test('MPEG-TS segments mislabeled as HTML are not discarded as error pages',()=>{assert.equal(looksLikeHtml(Buffer.from('474000130000b00d0001c100000001ef','hex')),false);assert.equal(looksLikeHtml(Buffer.from('<!DOCTYPE html><html><body>Not found</body></html>')),true);assert.equal(looksLikeHtml(Buffer.from('<html lang="en">Error</html>')),true);});
 test('title matching avoids selecting a sequel or wrong release year',()=>{const anime={title:'One Piece',year:1999};assert.equal(chooseMatch([{id:'film',title:'One Piece Film Red'},{id:'wrong',title:'ONE PIECE',year:2025},{id:'right',title:'ONE PIECE',year:1999}],anime)?.id,'right');assert.equal(chooseMatch([{title:'One Piece Film Red'}],anime),undefined);});
 test('media relay rejects private targets and non HTTPS URLs',async()=>{for(const address of ['127.0.0.1','10.0.0.1','172.16.1.1','192.168.0.1','169.254.169.254','::1','::ffff:127.0.0.1','fc00::1','fe80::1'])assert.equal(isPublicAddress(address),false,address);assert.equal(isPublicAddress('8.8.8.8'),true);for(const url of ['http://example.com/x','https://127.0.0.1/x','https://[::1]/x','https://example.com:8080/x','https://user:pass@example.com/x'])await assert.rejects(()=>validateTarget(url));});
