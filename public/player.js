@@ -83,19 +83,27 @@ export async function setEpisode({anime,episode,resumeAt=0,onProgress}){
   }
   video.addEventListener('timeupdate',updateSkips);video.addEventListener('seeked',updateSkips);video.addEventListener('loadedmetadata',updateSkips);
   const fail=text=>{if(!alive())return;clear();failed=true;overlay.hidden=false;button.disabled=false;button.textContent='Reload video';hint.textContent=text;status.textContent=text;};
-  const loading=()=>{if(!alive())return;clear();overlay.hidden=hasPlayed;if(!hasPlayed){button.disabled=true;button.textContent='Loading video…';hint.textContent='Waiting for video data.';}status.textContent=hasPlayed?'Buffering…':'Loading video…';timer=setTimeout(()=>fail('The stream did not start within 20 seconds. Reload the video to try again.'),20000);};
+  const loading=()=>{if(!alive())return;clear();overlay.hidden=hasPlayed;if(!hasPlayed){button.disabled=true;button.textContent='Loading video…';hint.textContent='Waiting for video data.';}status.textContent=hasPlayed?'Buffering…':'Loading video…';timer=setTimeout(()=>{
+    if(!alive()||video.paused||video.readyState>=3)return;
+    // Slow mobile buffering is recoverable; do not cover playable video with an error.
+    status.textContent='Connection is slow. Waiting for video data…';
+    if(!hasPlayed){button.disabled=false;button.textContent='▶ Play episode';hint.textContent='Video is still loading. You can try Play again.';}
+  },20000);};
   button.onclick=async()=>{if(failed){retry();return;}loading();try{await video.play();}catch(e){if(!alive()||e.name==='AbortError')return;if(e.name==='NotAllowedError'){clear();overlay.hidden=false;button.disabled=false;button.textContent='▶ Play episode';hint.textContent='Press Play again to allow playback.';}else fail(`Playback could not start: ${e.message}`);}};
   video.addEventListener('loadedmetadata',()=>{if(video.dataset.engine==='native'&&resumeAt>0&&Number.isFinite(video.duration)&&resumeAt<video.duration-5)video.currentTime=resumeAt;});
   video.addEventListener('loadeddata',()=>{if(alive()&&video.videoWidth){clear();status.textContent=video.paused?'Video ready. Press Play to start.':'Video loaded.';}});
-  video.addEventListener('playing',()=>{if(!alive())return;clear();failed=false;hasPlayed=true;overlay.hidden=true;button.disabled=false;status.textContent='Playing';updateSkips();save();});
-  video.addEventListener('timeupdate',()=>{if(alive()&&hasPlayed&&Date.now()-lastSaved>=5000)save();});
+  const playing=()=>{if(!alive())return;clear();failed=false;hasPlayed=true;overlay.hidden=true;button.disabled=false;status.textContent='Playing';};
+  video.addEventListener('playing',()=>{playing();updateSkips();save();});
+  let lastPlaybackTime=0;
+  video.addEventListener('timeupdate',()=>{if(!alive())return;if(!video.paused&&!video.seeking&&video.readyState>=2&&video.currentTime>lastPlaybackTime){playing();}lastPlaybackTime=video.currentTime;if(hasPlayed&&Date.now()-lastSaved>=5000)save();});
   video.addEventListener('ended',save);
   video.addEventListener('waiting',()=>{if(alive()&&!video.paused&&!failed)loading();});
   video.addEventListener('pause',()=>{if(!alive())return;save();if(failed)return;clear();overlay.hidden=false;button.disabled=false;button.textContent=video.ended?'↻ Replay episode':'▶ Resume episode';hint.textContent='Press Play to continue.';});
   video.addEventListener('error',()=>fail(`Playback failed (${video.error?.message||video.error?.code||'unknown error'}). Reload the video to retry.`));
   detachControls=attachVideoControls($('#player'),video,source.skip,seekTo,message=>fail(message));
   if(source.kind==='hls'){
-    if(window.Hls?.isSupported()){video.dataset.engine='hls.js';hls=new window.Hls({maxBufferLength:20,maxMaxBufferLength:40,startPosition:resumeAt>0?resumeAt:-1});hls.on(window.Hls.Events.ERROR,(_,data)=>{if(data.fatal)fail(`Video could not load: ${data.details}. Reload the video to retry.`);});hls.loadSource(source.url);hls.attachMedia(video);}
+    if(video.canPlayType('application/vnd.apple.mpegurl')&&/iPhone|iPad|iPod|Macintosh.*Mobile/i.test(navigator.userAgent)){video.dataset.engine='native';video.src=source.url;}
+    else if(window.Hls?.isSupported()){video.dataset.engine='hls.js';hls=new window.Hls({maxBufferLength:20,maxMaxBufferLength:40,startPosition:resumeAt>0?resumeAt:-1});hls.on(window.Hls.Events.ERROR,(_,data)=>{if(data.fatal)fail(`Video could not load: ${data.details}. Reload the video to retry.`);});hls.loadSource(source.url);hls.attachMedia(video);}
     else if(video.canPlayType('application/vnd.apple.mpegurl')){video.dataset.engine='native';video.src=source.url;}
     else fail('This browser does not support this video format. Try Chrome, Edge, Firefox, or Safari.');
   }else{video.dataset.engine='native';video.src=source.url;}

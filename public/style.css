@@ -19,8 +19,14 @@
   .watch-layout>.playback-column{display:contents}
   .watch-layout .playback-toolbar{grid-row:1}
   .watch-layout #player{grid-row:2}
-  .watch-layout .player-controls{grid-row:3}
-  .watch-layout>.episode-panel{grid-row:4}
-  .watch-layout .playback-column>.player-note{grid-row:5}
-  .watch-layout #anime-schedule{grid-row:6}
+  .watch-layout #skip-controls{grid-row:3}
+  .watch-layout .player-controls{grid-row:4}
+  .watch-layout>.episode-panel{grid-row:5}
+  .watch-layout .playback-column>.player-note{grid-row:6}
+  .watch-layout #anime-schedule{grid-row:7}
 }
+.player>video{touch-action:manipulation}
+body.player-fullscreen-open{overflow:hidden}
+.player.mobile-fullscreen{position:fixed;inset:0;z-index:10000;width:100vw;height:100dvh;max-width:none;max-height:none;aspect-ratio:auto;border:0;border-radius:0;background:#000}
+.player.mobile-fullscreen>video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+.player.mobile-fullscreen>.video-controls{padding-bottom:max(12px,env(safe-area-inset-bottom));padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}

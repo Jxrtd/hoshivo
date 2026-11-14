@@ -26,7 +26,21 @@ export function attachVideoControls(player,video,segments,onSeek,onPlayError){
   }
   captions.onchange=()=>{captionChoice=captions.value;Array.from(video.textTracks).forEach((t,i)=>{t.mode=String(i)===captionChoice?'showing':'disabled';});};
   const speed=document.createElement('select');speed.className='video-speed';speed.setAttribute('aria-label','Playback speed');for(const rate of [0.75,1,1.25,1.5,2])speed.append(new Option(rate+'×',String(rate)));speed.value='1';speed.onchange=()=>{video.playbackRate=Number(speed.value);};row.append(speed);
-  const fullscreen=button('Enter fullscreen','⛶',async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await player.requestFullscreen();}catch(e){onPlayError('Fullscreen unavailable: '+e.message);}});
+  const isFullscreen=()=>document.fullscreenElement===player||document.webkitFullscreenElement===player||video.webkitDisplayingFullscreen||player.classList.contains('mobile-fullscreen');
+  function exitExpanded(){player.classList.remove('mobile-fullscreen');document.body.classList.remove('player-fullscreen-open');}
+  const fullscreen=button('Enter fullscreen','⛶',async()=>{
+    try{
+      if(player.classList.contains('mobile-fullscreen'))exitExpanded();
+      else if(document.fullscreenElement)await document.exitFullscreen();
+      else if(document.webkitFullscreenElement)document.webkitExitFullscreen();
+      else if(video.webkitDisplayingFullscreen)video.webkitExitFullscreen();
+      else if(player.requestFullscreen)await player.requestFullscreen();
+      else if(player.webkitRequestFullscreen)player.webkitRequestFullscreen();
+      else if(video.webkitEnterFullscreen&&video.readyState>=1)video.webkitEnterFullscreen();
+      else throw new Error('Use expanded player');
+    }catch{player.classList.add('mobile-fullscreen');document.body.classList.add('player-fullscreen-open');}
+    syncFullscreen();
+  });
   controls.append(row);player.append(controls);
   let hideTimer,disposed=false;
   const originalCuePositions=new Map(),subtitleTracks=new Set();
@@ -68,6 +82,18 @@ export function attachVideoControls(player,video,segments,onSeek,onPlayError){
   function onNavigationKey(event){if(event.key==='Tab')showControls();}
   function onControlFocus(event){if(controls.contains(event.target))showControls();}
   player.addEventListener('pointermove',showControls);player.addEventListener('pointerdown',showControls);player.addEventListener('keydown',onNavigationKey);player.addEventListener('focusin',onControlFocus);
+  let lastTap=null,touchStart=null;
+  function tapStart(event){if(event.pointerType==='touch'&&event.isPrimary&&!event.target.closest('button,input,select,a,.video-controls,.video-overlay'))touchStart={x:event.clientX,y:event.clientY,time:performance.now()};else touchStart=null;}
+  function tapEnd(event){
+    const start=touchStart;touchStart=null;
+    if(event.pointerType!=='touch'||!start||performance.now()-start.time>350||Math.hypot(event.clientX-start.x,event.clientY-start.y)>25){lastTap=null;return;}
+    const rect=video.getBoundingClientRect(),side=event.clientX<rect.left+rect.width/2?'left':'right',now=performance.now();
+    if(lastTap&&now-lastTap.time<350&&side===lastTap.side&&Math.hypot(event.clientX-lastTap.x,event.clientY-lastTap.y)<70){
+      lastTap=null;if(Number.isFinite(video.duration)&&video.duration>0){event.preventDefault();onSeek(Math.max(0,Math.min(video.duration,video.currentTime+(side==='right'?5:-5))));update();}
+    }else lastTap={time:now,side,x:event.clientX,y:event.clientY};
+  }
+  function cancelTap(){touchStart=null;lastTap=null;}
+  player.addEventListener('pointerdown',tapStart);player.addEventListener('pointerup',tapEnd);player.addEventListener('pointercancel',cancelTap);
   // A seek emits playing/timeupdate again, but must not wake the controls.
   video.addEventListener('play',showControls);video.addEventListener('pause',showControls);video.addEventListener('ended',showControls);
   let duration=NaN,ranges=[];
@@ -90,7 +116,9 @@ export function attachVideoControls(player,video,segments,onSeek,onPlayError){
   const events=['timeupdate','durationchange','loadedmetadata','play','pause','ended','volumechange'];events.forEach(name=>video.addEventListener(name,update));video.textTracks.addEventListener('addtrack',updateCaptions);video.textTracks.addEventListener('change',updateCaptions);
   function videoKey(event){if(event.target!==video)return;if(event.key===' '||event.key==='k'){event.preventDefault();play.click();}else if(event.key==='f'){event.preventDefault();fullscreen.click();}else if(event.key==='m'){event.preventDefault();mute.click();}}
   video.addEventListener('keydown',videoKey);
-  function syncFullscreen(){fullscreen.setAttribute('aria-label',document.fullscreenElement===player?'Exit fullscreen':'Enter fullscreen');positionSubtitles();}
+  function syncFullscreen(){const label=isFullscreen()?'Exit fullscreen':'Enter fullscreen';fullscreen.setAttribute('aria-label',label);fullscreen.title=label;positionSubtitles();}
+  function exitOnEscape(event){if(event.key==='Escape'&&player.classList.contains('mobile-fullscreen')){exitExpanded();syncFullscreen();}}
+  document.addEventListener('keydown',exitOnEscape);document.addEventListener('webkitfullscreenchange',syncFullscreen);video.addEventListener('webkitbeginfullscreen',syncFullscreen);video.addEventListener('webkitendfullscreen',syncFullscreen);
   document.addEventListener('fullscreenchange',syncFullscreen);update();updateCaptions();registerSubtitleTracks();
-  return ()=>{disposed=true;clearTimeout(hideTimer);subtitleResize?.disconnect();video.textTracks.removeEventListener('addtrack',registerSubtitleTracks);video.textTracks.removeEventListener('change',positionSubtitles);for(const textTrack of subtitleTracks)textTrack.removeEventListener('cuechange',positionSubtitles);restoreSubtitlePositions();originalCuePositions.clear();player.removeEventListener('pointermove',showControls);player.removeEventListener('pointerdown',showControls);player.removeEventListener('keydown',onNavigationKey);player.removeEventListener('focusin',onControlFocus);video.removeEventListener('play',showControls);video.removeEventListener('pause',showControls);video.removeEventListener('ended',showControls);events.forEach(name=>video.removeEventListener(name,update));video.textTracks.removeEventListener('addtrack',updateCaptions);video.textTracks.removeEventListener('change',updateCaptions);video.removeEventListener('keydown',videoKey);document.removeEventListener('fullscreenchange',syncFullscreen);controls.remove();player.classList.remove('has-custom-controls','controls-idle');};
+  return ()=>{exitExpanded();player.removeEventListener('pointerdown',tapStart);player.removeEventListener('pointerup',tapEnd);player.removeEventListener('pointercancel',cancelTap);document.removeEventListener('keydown',exitOnEscape);document.removeEventListener('webkitfullscreenchange',syncFullscreen);video.removeEventListener('webkitbeginfullscreen',syncFullscreen);video.removeEventListener('webkitendfullscreen',syncFullscreen);disposed=true;clearTimeout(hideTimer);subtitleResize?.disconnect();video.textTracks.removeEventListener('addtrack',registerSubtitleTracks);video.textTracks.removeEventListener('change',positionSubtitles);for(const textTrack of subtitleTracks)textTrack.removeEventListener('cuechange',positionSubtitles);restoreSubtitlePositions();originalCuePositions.clear();player.removeEventListener('pointermove',showControls);player.removeEventListener('pointerdown',showControls);player.removeEventListener('keydown',onNavigationKey);player.removeEventListener('focusin',onControlFocus);video.removeEventListener('play',showControls);video.removeEventListener('pause',showControls);video.removeEventListener('ended',showControls);events.forEach(name=>video.removeEventListener(name,update));video.textTracks.removeEventListener('addtrack',updateCaptions);video.textTracks.removeEventListener('change',updateCaptions);video.removeEventListener('keydown',videoKey);document.removeEventListener('fullscreenchange',syncFullscreen);controls.remove();player.classList.remove('has-custom-controls','controls-idle');};
 }

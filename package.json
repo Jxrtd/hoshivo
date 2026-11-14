@@ -16,6 +16,7 @@
     "test:schedule": "node scripts/schedule-smoke.mjs",
     "test:episodes": "node scripts/episodes-smoke.mjs",
     "test:controls": "node scripts/controls-smoke.mjs",
+    "test:mobile-player": "node scripts/mobile-player-smoke.mjs",
     "test:idle": "node scripts/idle-smoke.mjs",
     "test:subtitles": "node scripts/subtitle-position-smoke.mjs",
     "test:episode-urls": "node scripts/episode-url-smoke.mjs"
