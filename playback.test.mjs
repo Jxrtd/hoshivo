@@ -2,7 +2,14 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {chooseMatch} from './playback.mjs';
 import {findMatch} from './matching.mjs';
-import {isPublicAddress,validateTarget,rewriteManifest,looksLikeHtml} from './media.mjs';
+import {isPublicAddress,validateTarget,rewriteManifest,looksLikeHtml,mediaContentType} from './media.mjs';
+test('native HLS receives transport-stream content type for mislabeled video segments',()=>{
+  const ts=Buffer.alloc(564);ts[0]=ts[188]=ts[376]=0x47;
+  for(const type of ['image/jpeg','image/png','text/html','application/octet-stream','video/mp2t'])assert.equal(mediaContentType(ts,type),'video/mp2t');
+  assert.equal(mediaContentType(Buffer.from([0xff,0xd8,0xff]),'image/jpeg'),'image/jpeg');
+  assert.equal(mediaContentType(Buffer.alloc(16,0x47),'application/octet-stream'),'application/octet-stream');
+  assert.equal(mediaContentType(Buffer.from('WEBVTT\n'),'text/vtt'),'text/vtt');
+});
 test('catalog matching retries alternate names and recognizes provider aliases',async()=>{
   const queries=[];const match=await findMatch({title:'Frieren: Beyond Journey’s End',alternative:'Sousou no Frieren',year:2023},async q=>{queries.push(q);return q==='Sousou no Frieren'?[{source_id:'animeparadise:correct',title:'Different English Label',alternative:'Sousou no Frieren',year:2023}]:[];});
   assert.equal(match.source_id,'animeparadise:correct');assert.deepEqual(queries,['Frieren: Beyond Journey’s End','Sousou no Frieren']);

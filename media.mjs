@@ -50,6 +50,12 @@ export function rewriteManifest(text,base,wrap){
   }).join('\n');
 }
 export function looksLikeHtml(bytes){return /^\s*(?:<!doctype\s+html|<html\b|<head\b|<body\b|<script\b|<\?xml|<Error\b|<!--)/i.test(Buffer.from(bytes).subarray(0,512).toString('utf8'));}
+export function mediaContentType(bytes,declared){
+  // Native mobile HLS can reject TS segments mislabeled as JPEG or HTML.
+  // Require repeated 188-byte packet syncs so keys/images are not relabeled.
+  if(bytes.length>=189&&bytes[0]===0x47&&bytes[188]===0x47&&(bytes.length<377||bytes[376]===0x47))return 'video/mp2t';
+  return declared.includes('text/html')?'application/octet-stream':declared;
+}
 export async function relayMedia(req,res,token){
   const entry=tickets.get(token);
   if(!entry||entry.expires<Date.now()){res.writeHead(410);res.end('Media link expired. Test this provider again.');return;}
@@ -68,9 +74,7 @@ export async function relayMedia(req,res,token){
     }
     const reader=upstream.body.getReader(),first=await reader.read();
     if(first.done||looksLikeHtml(first.value)){await reader.cancel();res.writeHead(502);res.end('Provider returned an empty response or HTML page instead of media.');return;}
-    // Some AnimeParadise segments contain valid MPEG-TS bytes but are labelled
-    // text/html by the CDN. Inspect the bytes rather than dropping those segments.
-    if(ct.includes('text/html'))ct=first.value[0]===0x47?'video/mp2t':'application/octet-stream';
+    ct=mediaContentType(first.value,ct);
     const out={'Content-Type':ct,'Cache-Control':'no-store'};for(const name of ['content-length','content-range','accept-ranges']){const value=upstream.headers.get(name);if(value&&!(name==='content-length'&&upstream.headers.get('content-encoding')))out[name]=value;}
     async function* chunks(){try{yield first.value;while(true){const part=await reader.read();if(part.done)break;yield part.value;}}finally{await reader.cancel().catch(()=>{});}}
     res.writeHead(upstream.status,out);await new Promise((done,fail)=>{const body=Readable.from(chunks());body.on('error',fail);body.on('end',done);res.on('close',done);body.pipe(res);});
