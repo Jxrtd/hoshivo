@@ -42,14 +42,15 @@ try{
   assert.match(await page.locator('#playback-status').textContent(),/Playback failed/);
   assert.equal(await page.locator('#player').getByRole('button',{name:'Reload video'}).count(),0);
   assert.equal(await page.locator('#reload-source').isVisible(),true);
-  await page.evaluate(()=>{const p=document.querySelector('#player'),v=p.querySelector('video');p.requestFullscreen=undefined;p.webkitRequestFullscreen=undefined;v.webkitEnterFullscreen=()=>{window.nativeFullscreenCalled=true;};});
+  await page.evaluate(()=>{const p=document.querySelector('#player'),v=p.querySelector('video');p.requestFullscreen=undefined;p.webkitRequestFullscreen=undefined;v.webkitEnterFullscreen=()=>{window.nativeFullscreenCalled=true;v.webkitDisplayingFullscreen=true;v.dispatchEvent(new Event('webkitbeginfullscreen'));};v.webkitExitFullscreen=()=>{v.webkitDisplayingFullscreen=false;v.dispatchEvent(new Event('webkitendfullscreen'));};});
   await page.evaluate(()=>{Object.defineProperty(screen.orientation,'lock',{configurable:true,value:undefined});});
-  await page.getByRole('button',{name:'Enter fullscreen',exact:true}).click();assert.equal(await page.locator('#player').evaluate(p=>p.classList.contains('landscape-fullscreen')),true);
-  assert.equal(await page.evaluate(()=>window.nativeFullscreenCalled),undefined);
-  await page.setViewportSize({width:844,height:390});assert.equal(await page.locator('#player').evaluate(p=>p.clientWidth>p.clientHeight),true);
+  await page.getByRole('button',{name:'Enter fullscreen',exact:true}).click();
+  assert.equal(await page.evaluate(()=>window.nativeFullscreenCalled),true);
+  assert.equal(await page.locator('#player').evaluate(p=>p.classList.contains('mobile-fullscreen')),false);
   await page.getByRole('button',{name:'Exit fullscreen',exact:true}).click();
   await page.evaluate(()=>{
     const player=document.querySelector('#player');window.fakeFullscreen=null;
+    player.querySelector('video').webkitEnterFullscreen=undefined;
     Object.defineProperty(document,'fullscreenElement',{configurable:true,get:()=>window.fakeFullscreen});
     player.requestFullscreen=async()=>{window.fakeFullscreen=player;document.dispatchEvent(new Event('fullscreenchange'));};
     document.exitFullscreen=async()=>{window.fakeFullscreen=null;document.dispatchEvent(new Event('fullscreenchange'));};
@@ -58,6 +59,10 @@ try{
   });
   await page.getByRole('button',{name:'Enter fullscreen',exact:true}).click();assert.equal(await page.evaluate(()=>window.requestedOrientation),'landscape');
   await page.getByRole('button',{name:'Exit fullscreen',exact:true}).click();assert.equal(await page.evaluate(()=>window.orientationUnlocked),true);
+  await page.evaluate(()=>{Object.defineProperty(screen.orientation,'lock',{configurable:true,value:async()=>{throw new Error('Orientation unavailable');}});});
+  await page.getByRole('button',{name:'Enter fullscreen',exact:true}).click();assert.equal(await page.evaluate(()=>document.fullscreenElement===document.querySelector('#player')),true);
+  assert.equal(await page.locator('#player').evaluate(p=>p.classList.contains('mobile-fullscreen')),false);
+  await page.getByRole('button',{name:'Exit fullscreen',exact:true}).click();
   await page.evaluate(()=>{document.querySelector('#player').classList.add('mobile-fullscreen');document.body.classList.add('player-fullscreen-open');window.destroyTestPlayer();});
   assert.equal(await page.locator('body').evaluate(b=>b.classList.contains('player-fullscreen-open')),false);
   console.log('Passed: mobile skip switches below video, landscape fallback, subtitle margins and control clearance, rotation, no reload overlay, and cleanup.');

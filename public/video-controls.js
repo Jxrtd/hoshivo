@@ -40,15 +40,15 @@ export function attachVideoControls(player,video,segments,onSeek,onPlayError){
       else if(document.fullscreenElement)await document.exitFullscreen();
       else if(document.webkitFullscreenElement)document.webkitExitFullscreen();
       else if(video.webkitDisplayingFullscreen)video.webkitExitFullscreen();
-      else if(mobile()&&typeof screen.orientation?.lock!=='function')expandPlayer();
+      else if(mobile()&&video.webkitEnterFullscreen&&video.readyState>=1)video.webkitEnterFullscreen();
       else if(player.requestFullscreen)await player.requestFullscreen();
       else if(player.webkitRequestFullscreen)player.webkitRequestFullscreen();
       else if(video.webkitEnterFullscreen&&video.readyState>=1)video.webkitEnterFullscreen();
       else throw new Error('Use expanded player');
-    }catch{expandPlayer();}
+    }catch{try{if(video.webkitEnterFullscreen&&video.readyState>=1)video.webkitEnterFullscreen();else expandPlayer();}catch{expandPlayer();}}
     if(entering&&mobile()&&document.fullscreenElement===player){
       try{await screen.orientation.lock('landscape');orientationLocked=true;if(disposed||!isFullscreen())unlockOrientation();}
-      catch{if(document.fullscreenElement===player)await document.exitFullscreen().catch(()=>{});if(!disposed)expandPlayer();}
+      catch{/* Keep true fullscreen when the browser refuses orientation locking. */}
     }
     syncFullscreen();
   });
@@ -60,6 +60,8 @@ export function attachVideoControls(player,video,segments,onSeek,onPlayError){
   }
   function positionSubtitles(){
     if(disposed)return;
+    // The native iPhone player manages its own captions and control clearance.
+    if(video.webkitDisplayingFullscreen){restoreSubtitlePositions();return;}
     const height=video.clientHeight;if(height<=0)return;
     const padding=mobile()?Math.max(12,height*0.04):Math.max(28,height*0.08),controlHeight=controls.classList.contains('controls-hidden')?0:controls.offsetHeight;
     const bottom=Math.max(10,100-(controlHeight+padding)/height*100);
