@@ -1,7 +1,12 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {normalizeSkipData} from './skip.mjs';
-import {readSkipSettings,activeSkip} from './public/skip.js';
+import {readSkipSettings,activeSkip,timelineSegments} from './public/skip.js';
+test('timeline markers use episode timestamps and clamp to video duration',()=>{
+  const ranges=timelineSegments({intro:{start:0,end:90},outro:{start:900,end:1100}},1000);
+  assert.deepEqual(ranges,[{kind:'intro',start:0,end:90,left:0,width:9},{kind:'outro',start:900,end:1000,left:90,width:10}]);
+  assert.deepEqual(timelineSegments(null,1000),[]);assert.deepEqual(timelineSegments({intro:{start:0,end:90}},NaN),[]);assert.deepEqual(timelineSegments({outro:{start:1100,end:1200}},1000),[]);
+});
 test('skip settings default on and preserve explicit off preferences',()=>{
   assert.deepEqual(readSkipSettings({getItem:()=>null}),{intro:true,outro:true});
   assert.deepEqual(readSkipSettings({getItem:()=>'{"intro":false,"outro":false}'}),{intro:false,outro:false});

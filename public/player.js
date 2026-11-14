@@ -1,4 +1,5 @@
 import {readSkipSettings,activeSkip} from './skip.js';
+import {attachVideoControls} from './video-controls.js';
 const $=s=>document.querySelector(s);
 let session=null,hls=null,cleanup=()=>{};
 export function destroyPlayer(){
@@ -29,12 +30,12 @@ export async function setEpisode({anime,episode,resumeAt=0,onProgress}){
   const button=document.createElement('button');button.className='button primary play-episode';button.textContent=`▶ Play episode ${episode.number}`;
   const hint=document.createElement('p');hint.className='video-hint';hint.setAttribute('role','status');hint.textContent=resumeAt>0?'Continue from where you left off.':'Press Play to start the video.';
   overlay.append(button,hint);$('#player').append(video,overlay);status.textContent='Press Play to start.';
-  let timer,skipNoticeTimer,disposed=false,failed=false,hasPlayed=false,lastSaved=0,manualSkipOverride=null;
+  let timer,disposed=false,failed=false,hasPlayed=false,lastSaved=0,manualSkipOverride=null,detachControls=()=>{};
   const alive=()=>!disposed&&session===s&&$('#player video')===video;
   const save=()=>{if(hasPlayed){latestPosition=Number.isFinite(video.currentTime)?video.currentTime:0;onProgress?.({position:latestPosition,duration:Number.isFinite(video.duration)?video.duration:0,completed:video.ended});lastSaved=Date.now();}};
   const clear=()=>{clearTimeout(timer);timer=null;};
   const onHide=()=>{if(document.hidden)save();};document.addEventListener('visibilitychange',onHide);window.addEventListener('pagehide',save);
-  cleanup=()=>{save();disposed=true;clear();clearTimeout(skipNoticeTimer);document.removeEventListener('visibilitychange',onHide);window.removeEventListener('pagehide',save);document.removeEventListener('keydown',onSeekKey,true);};
+  cleanup=()=>{save();detachControls();disposed=true;clear();document.removeEventListener('visibilitychange',onHide);window.removeEventListener('pagehide',save);document.removeEventListener('keydown',onSeekKey,true);};
   const settings=readSkipSettings();
   const skipControls=document.createElement('div');skipControls.id='skip-controls';skipControls.className='skip-controls';
   const skipButtons=document.createElement('div');skipButtons.className='skip-buttons';$('#player').append(skipButtons);
@@ -50,8 +51,12 @@ export async function setEpisode({anime,episode,resumeAt=0,onProgress}){
   }
   const skipNote=document.createElement('span');skipNote.className='skip-availability';skipNote.textContent=source.skip?.intro||source.skip?.outro?'Skip timings available': 'No skip timings available for this episode.';
   skipControls.append(skipNote);$('#player').after(skipControls);
-  const skipNotice=document.createElement('div');skipNotice.className='skip-notice';skipNotice.setAttribute('role','status');skipNotice.hidden=true;$('#player').append(skipNotice);
   video.tabIndex=0;video.setAttribute('aria-label','Episode player. Right Arrow: forward 5 seconds. Left Arrow: back 5 seconds.');video.setAttribute('aria-keyshortcuts','ArrowRight ArrowLeft');
+  function seekTo(value){
+    if(!alive()||!Number.isFinite(video.duration)||!Number.isFinite(value))return;
+    const next=Math.max(0,Math.min(video.duration,value));manualSkipOverride=activeSkip(source.skip,next,video.duration)?.kind||null;
+    video.currentTime=next;latestPosition=next;save();updateSkips();
+  }
   function onSeekKey(event){
     if(!alive()||!['ArrowRight','ArrowLeft'].includes(event.key)||event.altKey||event.ctrlKey||event.metaKey||event.shiftKey||event.isComposing)return;
     const target=event.target;if(target instanceof Element&&(target.closest('input,textarea,select,[role="textbox"],[role="slider"],[role="combobox"]')||target.isContentEditable))return;
@@ -60,16 +65,14 @@ export async function setEpisode({anime,episode,resumeAt=0,onProgress}){
     const delta=event.key==='ArrowRight'?5:-5,next=Math.max(0,Math.min(video.duration,video.currentTime+delta));
     // A deliberate rewind into an intro/outro must not be immediately undone
     // by automatic skipping. Offer the manual skip button for that pass.
-    manualSkipOverride=activeSkip(source.skip,next,video.duration)?.kind||null;
-    video.currentTime=next;latestPosition=next;save();
-    skipNotice.textContent=delta>0?'Forward 5 seconds':'Back 5 seconds';skipNotice.hidden=false;clearTimeout(skipNoticeTimer);skipNoticeTimer=setTimeout(()=>{skipNotice.hidden=true;},1200);
+    seekTo(next);
     updateSkips();
   }
   document.addEventListener('keydown',onSeekKey,true);
   function performSkip(active){
     if(!alive()||video.seeking)return;
     video.currentTime=active.end;manualButtons.intro.hidden=true;manualButtons.outro.hidden=true;
-    skipNotice.textContent='Skipped '+active.kind;skipNotice.hidden=false;clearTimeout(skipNoticeTimer);skipNoticeTimer=setTimeout(()=>{skipNotice.hidden=true;},2500);save();
+    save();
   }
   function updateSkips(){
     if(!alive())return;
@@ -80,8 +83,8 @@ export async function setEpisode({anime,episode,resumeAt=0,onProgress}){
   }
   video.addEventListener('timeupdate',updateSkips);video.addEventListener('seeked',updateSkips);video.addEventListener('loadedmetadata',updateSkips);
   const fail=text=>{if(!alive())return;clear();failed=true;overlay.hidden=false;button.disabled=false;button.textContent='Reload video';hint.textContent=text;status.textContent=text;};
-  const loading=()=>{if(!alive())return;clear();overlay.hidden=false;button.disabled=true;button.textContent='Loading video…';hint.textContent='Waiting for video data.';status.textContent='Loading video…';timer=setTimeout(()=>fail('The stream did not start within 20 seconds. Reload the video to try again.'),20000);};
-  button.onclick=async()=>{if(failed){retry();return;}loading();try{await video.play();}catch(e){if(!alive())return;if(e.name==='NotAllowedError'){clear();overlay.hidden=false;button.disabled=false;button.textContent='▶ Play episode';hint.textContent='Press Play again to allow playback.';}else fail(`Playback could not start: ${e.message}`);}};
+  const loading=()=>{if(!alive())return;clear();overlay.hidden=hasPlayed;if(!hasPlayed){button.disabled=true;button.textContent='Loading video…';hint.textContent='Waiting for video data.';}status.textContent=hasPlayed?'Buffering…':'Loading video…';timer=setTimeout(()=>fail('The stream did not start within 20 seconds. Reload the video to try again.'),20000);};
+  button.onclick=async()=>{if(failed){retry();return;}loading();try{await video.play();}catch(e){if(!alive()||e.name==='AbortError')return;if(e.name==='NotAllowedError'){clear();overlay.hidden=false;button.disabled=false;button.textContent='▶ Play episode';hint.textContent='Press Play again to allow playback.';}else fail(`Playback could not start: ${e.message}`);}};
   video.addEventListener('loadedmetadata',()=>{if(video.dataset.engine==='native'&&resumeAt>0&&Number.isFinite(video.duration)&&resumeAt<video.duration-5)video.currentTime=resumeAt;});
   video.addEventListener('loadeddata',()=>{if(alive()&&video.videoWidth){clear();status.textContent=video.paused?'Video ready. Press Play to start.':'Video loaded.';}});
   video.addEventListener('playing',()=>{if(!alive())return;clear();failed=false;hasPlayed=true;overlay.hidden=true;button.disabled=false;status.textContent='Playing';updateSkips();save();});
@@ -90,6 +93,7 @@ export async function setEpisode({anime,episode,resumeAt=0,onProgress}){
   video.addEventListener('waiting',()=>{if(alive()&&!video.paused&&!failed)loading();});
   video.addEventListener('pause',()=>{if(!alive())return;save();if(failed)return;clear();overlay.hidden=false;button.disabled=false;button.textContent=video.ended?'↻ Replay episode':'▶ Resume episode';hint.textContent='Press Play to continue.';});
   video.addEventListener('error',()=>fail(`Playback failed (${video.error?.message||video.error?.code||'unknown error'}). Reload the video to retry.`));
+  detachControls=attachVideoControls($('#player'),video,source.skip,seekTo,message=>fail(message));
   if(source.kind==='hls'){
     if(window.Hls?.isSupported()){video.dataset.engine='hls.js';hls=new window.Hls({maxBufferLength:20,maxMaxBufferLength:40,startPosition:resumeAt>0?resumeAt:-1});hls.on(window.Hls.Events.ERROR,(_,data)=>{if(data.fatal)fail(`Video could not load: ${data.details}. Reload the video to retry.`);});hls.loadSource(source.url);hls.attachMedia(video);}
     else if(video.canPlayType('application/vnd.apple.mpegurl')){video.dataset.engine='native';video.src=source.url;}

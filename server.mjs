@@ -75,7 +75,7 @@ export const server=http.createServer(async(req,res)=>{
     if(url.pathname==='/vendor/hls.min.js'){
       const content=await readFile(new URL('./node_modules/hls.js/dist/hls.min.js',import.meta.url));res.writeHead(200,{'Content-Type':'text/javascript; charset=utf-8','Cache-Control':'public, max-age=86400'});res.end(content);return;
     }
-    const files={'/':'index.html','/index.html':'index.html','/app.js':'app.js','/dashboard.js':'dashboard.js','/schedule.js':'schedule.js','/player.js':'player.js','/skip.js':'skip.js','/style.css':'style.css'};
+    const files={'/':'index.html','/index.html':'index.html','/app.js':'app.js','/dashboard.js':'dashboard.js','/schedule.js':'schedule.js','/player.js':'player.js','/video-controls.js':'video-controls.js','/skip.js':'skip.js','/style.css':'style.css'};
     const file=files[url.pathname];
     if(!file){res.writeHead(404);res.end('Not found');return;}
     const content=await readFile(resolve(root,file));

@@ -7,6 +7,7 @@ const safeUrl=value=>{try{const u=new URL(value);return u.protocol==='https:'?u.
 function read(key,fallback){try{return JSON.parse(localStorage.getItem(key))??fallback;}catch{return fallback;}}
 let saved=read('anikoto-watchlist',[]);if(!Array.isArray(saved))saved=[];
 let history=read('anikoto-progress',{});if(!history||typeof history!=='object'||Array.isArray(history))history={};
+let episodeProgress=read('hoshivo-episode-progress',{});if(!episodeProgress||typeof episodeProgress!=='object'||Array.isArray(episodeProgress))episodeProgress={};
 let recent=read('anikoto-recently-watched',[]);if(!Array.isArray(recent))recent=[];recent=recent.filter(a=>a&&/^(?:[1-9]\d*|ap-[a-zA-Z0-9_-]{1,160})$/.test(String(a.id))&&Number.isFinite(Number(a.episode))).slice(0,20);
 let searchItems=[],searchBusy=false,searchError='',searchSequence=0,searchTimer,searchAbort;
 let latestItems=[],latestPage=1,latestPages=1,latestLoading=false,latestError='';
@@ -17,6 +18,19 @@ async function request(path){const response=await fetch(path);const result=await
 const genres=a=>a.terms_by_type?.genre||[];
 const isSaved=id=>saved.some(a=>String(a.id)===String(id));
 function countSaved(){$('#saved-count').textContent=saved.length;}
+const episodeHistoryKey=anime=>Number(anime.ani_id)>0?'ani:'+Number(anime.ani_id):'series:'+anime.id;
+function episodeTitle(ep){const text=document.createElement('textarea');text.innerHTML=String(ep.title||ep.jp_title||'');const title=text.value.trim();return !title||/^episode\s*\d+(?:\.\d+)?$/i.test(title)?'Title not provided':title;}
+function episodeState(anime,number){return episodeProgress[episodeHistoryKey(anime)]?.[String(number)]||null;}
+function updateEpisodeMarker(button,anime,ep,index){
+  const state=episodeState(anime,ep.number),watched=!!(state?.started||state?.completed);
+  button.classList.toggle('active',index===episodeIndex);button.classList.toggle('watched',watched);button.classList.remove('in-progress');button.setAttribute('aria-pressed',String(index===episodeIndex));
+  if(index===episodeIndex)button.setAttribute('aria-current','true');else button.removeAttribute('aria-current');
+  button.setAttribute('aria-label',`Episode ${ep.number}: ${episodeTitle(ep)}. ${watched?'Watched':'Not watched'}.`);
+}
+function seedEpisodeProgress(anime){
+  const row=recent.find(a=>String(a.id)===String(anime.id));if(!row||episodeState(anime,row.episode))return;
+  const key=episodeHistoryKey(anime);episodeProgress[key]??={};episodeProgress[key][String(row.episode)]={position:Number(row.position)||0,duration:Number(row.duration)||0,started:true,completed:!!row.completed||(row.duration>0&&row.position/row.duration>=0.9)};store('hoshivo-episode-progress',episodeProgress);
+}
 function catalogCard(a,latest){
   const episode=Math.max(0,Number(a.is_sub)||0,Number(a.is_dub)||0),id=encodeURIComponent(String(a.id));
   const href=`#anime/${id}${latest&&episode>0?'/latest':''}`;
@@ -62,11 +76,17 @@ async function loadMore(){if(loading)return;loading=true;$('#status').className=
 function showPlayer(){
   const ep=current.episodes[episodeIndex];
   const anime=current.anime,previous=recent.find(a=>String(a.id)===String(anime.id)&&Number(a.episode)===Number(ep?.number));
-  setEpisode({anime,episode:ep,resumeAt:previous&&!previous.completed?Number(previous.position)||0:0,onProgress:progress=>recordWatched(anime,ep,progress)});
+  if(ep){const url=`#anime/${encodeURIComponent(String(anime.id))}/episode/${Number(ep.number)}`;if(location.hash!==url)window.history.replaceState(null,'',url);document.title=`${anime.title} — Episode ${ep.number} | Hoshivo`;}
+  const progress=episodeState(anime,ep?.number)||previous;
+  setEpisode({anime,episode:ep,resumeAt:progress&&!progress.completed?Number(progress.position)||0:0,onProgress:progress=>recordWatched(anime,ep,progress)});
   $('#now-playing').textContent=ep?`Episode ${ep.number} · ${lang.toUpperCase()}`:'No episodes available';
   $('#previous').disabled=episodeIndex<=0;$('#next').disabled=episodeIndex>=current.episodes.length-1||episodeIndex<0;
-  document.querySelectorAll('.episode').forEach(b=>{const active=Number(b.dataset.index)===episodeIndex;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));});
+  document.querySelectorAll('.episode').forEach(b=>{const index=Number(b.dataset.index);updateEpisodeMarker(b,anime,current.episodes[index],index);});
 
+}
+function selectEpisode(index){
+  const episode=current?.episodes[index];if(!episode)return;
+  location.hash=`#anime/${encodeURIComponent(String(current.anime.id))}/episode/${Number(episode.number)}`;
 }
 function renderRecent(){
   const home=!location.hash||location.hash==='#home';$('#recently-watched').hidden=!home;
@@ -78,23 +98,31 @@ function renderRecent(){
   }).join(''):'<div class="recent-empty"><span>&#9655;</span><p>Your next episode is waiting.<small>Start watching an anime and it will appear here.</small></p><a class="button" href="#browse">Browse anime &#8599;</a></div>';
 }
 function recordWatched(anime,episode,progress){
+  const key=episodeHistoryKey(anime);episodeProgress[key]??={};const previous=episodeProgress[key][String(episode.number)];
+  episodeProgress[key][String(episode.number)]={position:progress.position,duration:progress.duration,started:true,completed:!!previous?.completed||progress.completed||(progress.duration>0&&progress.position/progress.duration>=0.9)};store('hoshivo-episode-progress',episodeProgress);
+  if(current&&episodeHistoryKey(current.anime)===key){const button=document.querySelector(`.episode[data-number="${Number(episode.number)}"]`);if(button)updateEpisodeMarker(button,current.anime,episode,Number(button.dataset.index));}
   const row={id:anime.id,title:anime.title,poster:anime.poster,background_image:anime.background_image,episode:episode.number,position:progress.position,duration:progress.duration,completed:progress.completed,watchedAt:Date.now()};
   recent=[row,...recent.filter(a=>String(a.id)!==String(anime.id))].slice(0,20);store('anikoto-recently-watched',recent);
   history[anime.id]={episode:episode.number,lang:'sub'};store('anikoto-progress',history);renderRecent();
 }
 $('#clear-recent').onclick=()=>{recent=[];store('anikoto-recently-watched',recent);renderRecent();toast('Recently watched cleared');};
-function drawEpisodes(){const query=$('#episode-search').value.trim().toLowerCase();$('#episodes').innerHTML=current.episodes.map((ep,index)=>({ep,index})).filter(({ep})=>!query||String(ep.number).includes(query)||String(ep.title).toLowerCase().includes(query)).map(({ep,index})=>`<button class="episode ${index===episodeIndex?'active':''}" data-index="${index}" aria-pressed="${index===episodeIndex}" title="${escape(ep.title)}">${escape(ep.number)}</button>`).join('')||'<span class="player-note">No episodes found.</span>';}
+function drawEpisodes(){
+  const query=$('#episode-search').value.trim().toLowerCase();
+  $('#episodes').innerHTML=current.episodes.map((ep,index)=>({ep,index})).filter(({ep})=>!query||String(ep.number).includes(query)||episodeTitle(ep).toLowerCase().includes(query)).map(({ep,index})=>`<button class="episode" data-index="${index}" data-number="${Number(ep.number)}" aria-pressed="${index===episodeIndex}" title="${escape(episodeTitle(ep))}"><span class="episode-number">${String(ep.number).padStart(2,'0')}</span><span class="episode-copy"><strong class="episode-title">${escape(episodeTitle(ep))}</strong></span></button>`).join('')||'<span class="player-note">No episodes found.</span>';
+  document.querySelectorAll('.episode').forEach(button=>{const index=Number(button.dataset.index);updateEpisodeMarker(button,current.anime,current.episodes[index],index);});
+}
 async function detail(id,token,requestedEpisode){
   $('#detail').innerHTML='<a class="back" href="#browse">← Back to anime</a><p role="status">Loading anime and episodes…</p>';
   try{const response=await request('/api/series/'+id);if(token!==routeToken)return;current=response.data;current.episodes=Array.isArray(current.episodes)?current.episodes:[];const a=current.anime;
     const resume=recent.find(x=>String(x.id)===String(a.id))||history[a.id];const wanted=requestedEpisode==='latest'?Math.max(0,...current.episodes.map(ep=>Number(ep.number)||0)):requestedEpisode??resume?.episode;episodeIndex=Math.max(0,current.episodes.findIndex(ep=>Number(ep.number)===Number(wanted)));if(!current.episodes.length)episodeIndex=-1;
-    lang='sub';
+    lang='sub';seedEpisodeProgress(a);
     document.title=`${a.title} — Hoshivo`;
-    $('#detail').innerHTML=`<a class="back" href="#browse">← Back to anime</a><div class="detail-intro"><img class="detail-poster" src="${escape(safeUrl(a.poster))}" alt="${escape(a.title)} poster" referrerpolicy="no-referrer"><div><div class="eyebrow">${escape(a.status||'ANIME')} · ${escape(a.year||'TBA')}</div><h1>${escape(a.title)}</h1><div class="chips"><span class="chip">★ ${escape(a.score||'Unrated')}</span>${genres(a).map(g=>`<span class="chip">${escape(g)}</span>`).join('')}<span class="chip">${current.episodes.length} episodes available</span></div><p class="detail-description">${escape(a.description||'No synopsis available.')}</p><button id="save-anime" class="button">${isSaved(a.id)?'✓ In watchlist':'+ Add to watchlist'}</button></div></div><div class="watch-layout"><div><div class="playback-toolbar"><p id="playback-status" role="status" aria-live="polite"></p><button class="button" id="reload-source">Reload video</button></div><div class="player" id="player"></div><div class="player-controls"><strong id="now-playing"></strong><span class="chip">SUB &middot; AnimeParadise</span><button class="button" id="previous">← Prev</button><button class="button" id="next">Next →</button></div><p class="player-note">Subtitled video by AnimeParadise. Your recently watched episodes and playback position are saved in this browser.</p><section id="anime-schedule" class="anime-schedule" aria-label="Anime release schedule"></section></div><aside class="episode-panel"><h3>Episodes <span class="chip">${current.episodes.length}</span></h3><input id="episode-search" type="search" placeholder="Find an episode…" aria-label="Find episode"><div class="episodes" id="episodes"></div></aside></div>`;
+    $('#detail').innerHTML=`<a class="back" href="#browse">← Back to anime</a><div class="detail-intro"><img class="detail-poster" src="${escape(safeUrl(a.poster))}" alt="${escape(a.title)} poster" referrerpolicy="no-referrer"><div><div class="eyebrow">${escape(a.status||'ANIME')} · ${escape(a.year||'TBA')}</div><h1>${escape(a.title)}</h1><div class="chips"><span class="chip">★ ${escape(a.score||'Unrated')}</span>${genres(a).map(g=>`<span class="chip">${escape(g)}</span>`).join('')}<span class="chip">${current.episodes.length} episodes available</span></div><p class="detail-description">${escape(a.description||'No synopsis available.')}</p><button id="save-anime" class="button">${isSaved(a.id)?'✓ In watchlist':'+ Add to watchlist'}</button></div></div><div class="watch-layout"><div class="playback-column"><div class="playback-toolbar"><p id="playback-status" role="status" aria-live="polite"></p><button class="button" id="reload-source">Reload video</button></div><div class="player" id="player"></div><div class="player-controls"><strong id="now-playing"></strong><span class="chip">SUB &middot; AnimeParadise</span><button class="button" id="previous">← Prev</button><button class="button" id="next">Next →</button></div><p class="player-note">Subtitled video by AnimeParadise. Your recently watched episodes and playback position are saved in this browser.</p><section id="anime-schedule" class="anime-schedule" aria-label="Anime release schedule"></section></div><aside class="episode-panel"><h3>Episodes <span class="chip">${current.episodes.length}</span></h3><input id="episode-search" type="search" placeholder="Search episode number or title…" aria-label="Find episode"><div class="episodes" id="episodes"></div></aside></div>`;
+    const layout=$('.watch-layout');layout.prepend(layout.querySelector('.episode-panel'));
     $('#save-anime').onclick=()=>{if(isSaved(a.id)){saved=saved.filter(x=>String(x.id)!==String(a.id));toast('Removed from watchlist');}else{saved.push(a);toast('Added to watchlist');}store('anikoto-watchlist',saved);countSaved();$('#save-anime').textContent=isSaved(a.id)?'✓ In watchlist':'+ Add to watchlist';updateGenres();};
-    $('#previous').onclick=()=>{if(episodeIndex>0){episodeIndex--;showPlayer();}};$('#next').onclick=()=>{if(episodeIndex<current.episodes.length-1){episodeIndex++;showPlayer();}};
-    $('#episode-search').oninput=drawEpisodes;$('#episodes').onclick=e=>{const button=e.target.closest('[data-index]');if(button){episodeIndex=Number(button.dataset.index);showPlayer();}};drawEpisodes();showPlayer();loadAnimeSchedule(a.id);
+    $('#previous').onclick=()=>{if(episodeIndex>0)selectEpisode(episodeIndex-1);};$('#next').onclick=()=>{if(episodeIndex<current.episodes.length-1)selectEpisode(episodeIndex+1);};
+    $('#episode-search').oninput=drawEpisodes;$('#episodes').onclick=e=>{const button=e.target.closest('[data-index]');if(button)selectEpisode(Number(button.dataset.index));};drawEpisodes();showPlayer();loadAnimeSchedule(a.id);
   }catch(e){if(token===routeToken)$('#detail').innerHTML=`<a class="back" href="#browse">← Back to anime</a><p role="alert">${escape(e.message)}</p><button id="retry-detail" class="button">Retry</button>`;const retry=$('#retry-detail');if(retry)retry.onclick=()=>detail(id,token);}
 }
-function route(){destroyPlayer();clearAnimeSchedule();const token=++routeToken,hash=location.hash||'#home',match=hash.match(/^#anime\/([1-9]\d*|ap-[a-zA-Z0-9_-]{1,160})(?:\/(latest)|\/episode\/(\d+(?:\.\d+)?))?$/);$('#detail').hidden=!match;$('#dashboard-layout').hidden=!!match;showRankings(!hash||hash==='#home');$('#catalog').hidden=!!match;$('#hero').hidden=!!match||hash==='#watchlist'||hash==='#browse';document.querySelectorAll('.nav-link').forEach(a=>a.classList.toggle('active',a.hash===hash));renderRecent();if(match){detail(match[1],token,match[2]==='latest'?'latest':match[3]===undefined?undefined:Number(match[3]));window.scrollTo(0,0);}else{current=null;$('#detail').innerHTML='';document.title='Hoshivo — Your next obsession';render();if($('#search').value.trim())scheduleSearch();if(hash==='#home'){if(!latestItems.length)loadLatest();}else if(!items.length&&hash!=='#watchlist')loadMore();} }
+function route(){const token=++routeToken,hash=location.hash||'#home',match=hash.match(/^#anime\/([1-9]\d*|ap-[a-zA-Z0-9_-]{1,160})(?:\/(latest)|\/episode\/(\d+(?:\.\d+)?))?$/);if(match&&match[3]!==undefined&&current&&String(current.anime.id)===match[1]&&$('#player')&&!$('#detail').hidden){const index=current.episodes.findIndex(ep=>Number(ep.number)===Number(match[3]));if(index>=0){episodeIndex=index;showPlayer();return;}}destroyPlayer();clearAnimeSchedule();$('#detail').hidden=!match;$('#dashboard-layout').hidden=!!match;showRankings(!hash||hash==='#home');$('#catalog').hidden=!!match;$('#hero').hidden=!!match||hash==='#watchlist'||hash==='#browse';document.querySelectorAll('.nav-link').forEach(a=>a.classList.toggle('active',a.hash===hash));renderRecent();if(match){detail(match[1],token,match[2]==='latest'?'latest':match[3]===undefined?undefined:Number(match[3]));window.scrollTo(0,0);}else{current=null;$('#detail').innerHTML='';document.title='Hoshivo — Your next obsession';render();if($('#search').value.trim())scheduleSearch();if(hash==='#home'){if(!latestItems.length)loadLatest();}else if(!items.length&&hash!=='#watchlist')loadMore();} }
 $('#load-more').onclick=loadMore;$('#search').oninput=scheduleSearch;$('#genre').onchange=render;$('#language').onchange=render;window.addEventListener('hashchange',route);document.addEventListener('keydown',e=>{if(e.key==='/'&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)&&!$('#catalog').hidden){e.preventDefault();$('#search').focus();}});initDashboard();initSchedules();updateGenres();countSaved();route();
