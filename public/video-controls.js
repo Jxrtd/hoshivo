@@ -36,7 +36,7 @@ export function attachVideoControls(player,video,segments,onSeek,onPlayError){
   function positionSubtitles(){
     if(disposed)return;
     const height=video.getBoundingClientRect().height;if(height<=0)return;
-    const padding=Math.max(20,height*0.06),controlHeight=controls.classList.contains('controls-hidden')?0:controls.getBoundingClientRect().height;
+    const padding=Math.max(28,height*0.08),controlHeight=controls.classList.contains('controls-hidden')?0:controls.getBoundingClientRect().height;
     const bottom=Math.max(10,100-(controlHeight+padding)/height*100);
     for(const textTrack of video.textTracks){
       if(textTrack.mode!=='showing'||!['subtitles','captions'].includes(textTrack.kind))continue;
