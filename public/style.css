@@ -23,8 +23,12 @@ body.player-fullscreen-open{overflow:hidden}
   .watch-layout>.playback-column{display:contents}
   .watch-layout .playback-toolbar{grid-row:1}
   .watch-layout #player{grid-row:2}
-  .watch-layout .player-controls{grid-row:3}
-  .watch-layout>.episode-panel{grid-row:4}
-  .watch-layout .playback-column>.player-note{grid-row:5}
-  .watch-layout #anime-schedule{grid-row:6}
+  .watch-layout #skip-controls{grid-row:3;margin-top:0;padding:0 0 12px}
+  .watch-layout .player-controls{grid-row:4}
+  .watch-layout>.episode-panel{grid-row:5}
+  .watch-layout .playback-column>.player-note{grid-row:6}
+  .watch-layout #anime-schedule{grid-row:7}
+}
+@media(orientation:portrait){
+  .player.mobile-fullscreen.landscape-fullscreen{inset:auto;left:50%;top:50%;width:100dvh;height:100vw;transform:translate(-50%,-50%) rotate(90deg);transform-origin:center}
 }

@@ -7,9 +7,10 @@ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 const browser=await chromium.launch({executablePath,headless:true});
 try{
   const page=await browser.newPage({viewport:{width:390,height:844},hasTouch:true,isMobile:true});
-  await page.route('**/fixture',route=>route.fulfill({contentType:'text/html',body:'<meta name="viewport" content="width=device-width"><link rel="stylesheet" href="/style.css"><p id="playback-status"></p><button id="reload-source">Reload video</button><div class="player" id="player"></div>'}));
+  await page.route('**/fixture',route=>route.fulfill({contentType:'text/html',body:'<meta name="viewport" content="width=device-width"><link rel="stylesheet" href="/style.css"><div class="watch-layout"><aside class="episode-panel">Episodes</aside><div class="playback-column"><div class="playback-toolbar"><p id="playback-status"></p><button id="reload-source">Reload video</button></div><div class="player" id="player"></div><div class="player-controls">Episode navigation</div><p class="player-note">Notes</p><section id="anime-schedule">Schedule</section></div></div>'}));
   await page.route('**/api/playback?*',route=>route.fulfill({json:{ok:true,data:{kind:'mp4',url:'/api/media/'+'a'.repeat(48),skip:{},subtitles:[]}}}));
   await page.goto(`http://127.0.0.1:${server.address().port}/fixture`);
+  await page.clock.install();
   await page.evaluate(async()=>{
     Object.defineProperty(HTMLMediaElement.prototype,'src',{configurable:true,set(){},get(){return '';}});
     const {setEpisode,destroyPlayer}=await import('/player.js');window.destroyTestPlayer=destroyPlayer;
@@ -17,10 +18,24 @@ try{
     const video=document.querySelector('video');Object.defineProperty(video,'readyState',{get:()=>2});video.pause=()=>{};
     document.querySelector('#player').requestFullscreen=async()=>{throw new Error('Unsupported');};
   });
+  const playerRect=await page.locator('#player').boundingBox(),skipRect=await page.locator('#skip-controls').boundingBox(),navigationRect=await page.locator('.player-controls').boundingBox();
+  assert.ok(skipRect.y>=playerRect.y+playerRect.height);assert.ok(skipRect.y+skipRect.height<=navigationRect.y);
   await page.getByRole('button',{name:'Enter fullscreen',exact:true}).click();
   assert.equal(await page.locator('#player').evaluate(p=>p.classList.contains('mobile-fullscreen')),true);
   const rect=await page.locator('#player').boundingBox();assert.equal(Math.round(rect.width),390);assert.equal(Math.round(rect.height),844);
+  assert.equal(await page.locator('#player').evaluate(p=>p.clientWidth>p.clientHeight),true);
   assert.equal(await page.locator('#playback-status').textContent(),'Press Play to start.');
+  await page.evaluate(()=>{
+    const video=document.querySelector('video'),track=video.addTextTrack('subtitles','English','en'),cue=new VTTCue(0,100,'Mobile subtitle');
+    track.addCue(cue);track.mode='showing';Object.defineProperty(track,'activeCues',{get:()=>[cue]});window.mobileCue=cue;
+    Object.defineProperty(video,'paused',{get:()=>false});video.dispatchEvent(new Event('play'));
+  });
+  await page.waitForFunction(()=>typeof window.mobileCue.line==='number');
+  const raised=await page.evaluate(()=>window.mobileCue.line);
+  await page.clock.runFor(5100);
+  const lowered=await page.evaluate(()=>window.mobileCue.line);assert.ok(lowered>raised);assert.ok(lowered>=90&&lowered<=97);
+  await page.locator('#player').dispatchEvent('pointerdown');
+  assert.ok(await page.evaluate(()=>window.mobileCue.line)<lowered);
   await page.getByRole('button',{name:'Exit fullscreen',exact:true}).click();
   await page.evaluate(()=>document.querySelector('video').dispatchEvent(new Event('error')));
   assert.equal(await page.locator('.video-overlay').evaluate(e=>e.hidden),true);
@@ -28,8 +43,22 @@ try{
   assert.equal(await page.locator('#player').getByRole('button',{name:'Reload video'}).count(),0);
   assert.equal(await page.locator('#reload-source').isVisible(),true);
   await page.evaluate(()=>{const p=document.querySelector('#player'),v=p.querySelector('video');p.requestFullscreen=undefined;p.webkitRequestFullscreen=undefined;v.webkitEnterFullscreen=()=>{window.nativeFullscreenCalled=true;};});
-  await page.getByRole('button',{name:'Enter fullscreen',exact:true}).click();assert.equal(await page.evaluate(()=>window.nativeFullscreenCalled),true);
+  await page.evaluate(()=>{Object.defineProperty(screen.orientation,'lock',{configurable:true,value:undefined});});
+  await page.getByRole('button',{name:'Enter fullscreen',exact:true}).click();assert.equal(await page.locator('#player').evaluate(p=>p.classList.contains('landscape-fullscreen')),true);
+  assert.equal(await page.evaluate(()=>window.nativeFullscreenCalled),undefined);
+  await page.setViewportSize({width:844,height:390});assert.equal(await page.locator('#player').evaluate(p=>p.clientWidth>p.clientHeight),true);
+  await page.getByRole('button',{name:'Exit fullscreen',exact:true}).click();
+  await page.evaluate(()=>{
+    const player=document.querySelector('#player');window.fakeFullscreen=null;
+    Object.defineProperty(document,'fullscreenElement',{configurable:true,get:()=>window.fakeFullscreen});
+    player.requestFullscreen=async()=>{window.fakeFullscreen=player;document.dispatchEvent(new Event('fullscreenchange'));};
+    document.exitFullscreen=async()=>{window.fakeFullscreen=null;document.dispatchEvent(new Event('fullscreenchange'));};
+    Object.defineProperty(screen.orientation,'lock',{configurable:true,value:async value=>{window.requestedOrientation=value;}});
+    Object.defineProperty(screen.orientation,'unlock',{configurable:true,value:()=>{window.orientationUnlocked=true;}});
+  });
+  await page.getByRole('button',{name:'Enter fullscreen',exact:true}).click();assert.equal(await page.evaluate(()=>window.requestedOrientation),'landscape');
+  await page.getByRole('button',{name:'Exit fullscreen',exact:true}).click();assert.equal(await page.evaluate(()=>window.orientationUnlocked),true);
   await page.evaluate(()=>{document.querySelector('#player').classList.add('mobile-fullscreen');document.body.classList.add('player-fullscreen-open');window.destroyTestPlayer();});
   assert.equal(await page.locator('body').evaluate(b=>b.classList.contains('player-fullscreen-open')),false);
-  console.log('Passed: mobile fullscreen fallback, native Safari API selection, no reload overlay, and cleanup.');
+  console.log('Passed: mobile skip switches below video, landscape fallback, subtitle margins and control clearance, rotation, no reload overlay, and cleanup.');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
