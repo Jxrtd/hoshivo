@@ -36,6 +36,13 @@ export const server=http.createServer(async(req,res)=>{
   if(req.method!=='GET'){res.writeHead(405,{'Allow':'GET'});res.end();return;}
   try{
     const url=new URL(req.url,'http://localhost');
+    if(url.pathname==='/healthz'){
+      try{
+        const upstream=await fetch('http://127.0.0.1:3031/health',{signal:AbortSignal.timeout(2000)});
+        await upstream.body?.cancel();
+        return json(res,upstream.ok?200:503,{ok:upstream.ok});
+      }catch{return json(res,503,{ok:false});}
+    }
     if(url.pathname==='/api/schedule'){
       const date=url.searchParams.get('date')||manilaDate(),view=url.searchParams.get('view')||'day';
       if(!validDate(date)||Math.abs(Date.parse(date)-Date.parse(manilaDate()))>31*86400000||!['day','week'].includes(view))return json(res,400,{ok:false,error:'Choose a valid day or week within 31 days of today.'});
@@ -82,4 +89,7 @@ export const server=http.createServer(async(req,res)=>{
     res.writeHead(200,{'Content-Type':{'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8'}[extname(file)]});res.end(content);
   }catch(error){json(res,error.status||502,{ok:false,error:error.message||'Unable to load data.'});}
 });
-if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url))server.listen(Number(process.env.PORT)||3000,'127.0.0.1',()=>console.log('Anime site ready at http://localhost:3000'));
+if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
+  const port=Number(process.env.PORT)||3000,host=process.env.HOST||'127.0.0.1';
+  server.listen(port,host,()=>console.log(`Hoshivo ready at http://${host}:${port}`));
+}

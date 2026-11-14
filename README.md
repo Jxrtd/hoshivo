@@ -57,4 +57,10 @@ The browser check requires the running app and an installed Chrome or Edge execu
 - Exact title/year matching avoids accidentally playing another series.
 - Media uses random one-hour capability URLs, public HTTPS destination validation, HLS playlist rewriting, provider-supplied headers, and byte-range support. No arbitrary URL proxy endpoint is exposed.
 
-This is a local development setup. The website binds to loopback; do not expose the upstream SDK service publicly. Restarting the backend invalidates media tokens, so refresh the browser afterward. Upstream availability and regional restrictions can affect playback.
+Locally, the website binds to loopback. Set HOST to change the bind address. Do not expose the upstream SDK service publicly. Restarting the backend invalidates media tokens, so refresh the browser afterward. Upstream availability and regional restrictions can affect playback.
+
+## Deploy to Render
+
+Create a Blueprint in Render and select the private `Jxrtd/hoshivo` repository, granting Render access to it. The root `render.yaml` configures a free Node web service, installs and builds the pinned playback SDK, and starts both processes together. Render supplies PORT; HOST is set to 0.0.0.0. The `/healthz` check verifies the internal SDK is responding before accepting traffic.
+
+Use one instance because playback tokens live in memory. Free services sleep when idle, so the first visit can take longer. A restart invalidates current playback links; refresh the page afterward. Verify an episode after deployment because upstream providers can restrict datacenter IP addresses. Pushes to main redeploy the service automatically.
