@@ -33,7 +33,8 @@ export async function api(path){
 export const server=http.createServer(async(req,res)=>{
   res.setHeader('X-Content-Type-Options','nosniff');
   res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');
-  if(req.method!=='GET'){res.writeHead(405,{'Allow':'GET'});res.end();return;}
+  const mediaHead=req.method==='HEAD'&&/^\/api\/media\/[a-f0-9]{48}(?:\?|$)/.test(req.url);
+  if(req.method!=='GET'&&!mediaHead){res.writeHead(405,{'Allow':'GET'});res.end();return;}
   try{
     const url=new URL(req.url,'http://localhost');
     if(url.pathname==='/healthz'){
