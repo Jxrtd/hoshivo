@@ -75,6 +75,7 @@ export function attachVideoControls(player,video,segments,onSeek,onPlayError,qua
     if(video.webkitDisplayingFullscreen){restoreSubtitlePositions();return;}
     const height=video.clientHeight;if(height<=0)return;
     const padding=mobile()?Math.max(12,height*0.04):Math.max(28,height*0.08),controlHeight=controls.classList.contains('controls-hidden')?0:controls.offsetHeight;
+    player.style.setProperty('--video-controls-height',controlHeight+'px');
     const bottom=Math.max(10,100-(controlHeight+padding)/height*100);
     const activeCues=[];
     for(const textTrack of video.textTracks){
