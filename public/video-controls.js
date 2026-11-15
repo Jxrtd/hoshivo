@@ -1,5 +1,7 @@
 import {timelineSegments} from './skip.js';
 const stamp=value=>{const seconds=Math.max(0,Math.floor(Number.isFinite(value)?value:0));return `${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;};
+const icons={play:'<path d="m9 5 11 7-11 7Z" fill="currentColor" stroke="none"/>',pause:'<path d="M8 5v14M16 5v14" stroke-width="4"/>',volume:'<path d="m11 5-6 4H2v6h3l6 4Z"/><path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/>',muted:'<path d="m11 5-6 4H2v6h3l6 4Z"/><path d="m16 9 6 6m0-6-6 6"/>',expand:'<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>',collapse:'<path d="M3 8h5V3m8 0v5h5M8 21v-5H3m18 0h-5v5"/>'};
+const icon=name=>`<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${icons[name]}</svg>`;
 export function attachVideoControls(player,video,segments,onSeek,onPlayError,qualityApi){
   video.controls=false;player.classList.add('has-custom-controls');
   const controls=document.createElement('div');controls.className='video-controls';controls.setAttribute('role','group');controls.setAttribute('aria-label','Video playback controls');
@@ -10,7 +12,7 @@ export function attachVideoControls(player,video,segments,onSeek,onPlayError,qua
   const tooltip=document.createElement('span');tooltip.className='video-seek-tooltip';tooltip.hidden=true;tooltip.setAttribute('aria-hidden','true');
   seekWrap.append(track,seek,tooltip);controls.append(seekWrap);
   const row=document.createElement('div');row.className='video-controls-row';
-  function button(label,text,action){const node=document.createElement('button');node.type='button';node.className='video-control-button';node.setAttribute('aria-label',label);node.title=label;node.textContent=text;node.onclick=action;row.append(node);return node;}
+  function button(label,text,action){const node=document.createElement('button');node.type='button';node.className='video-control-button';node.setAttribute('aria-label',label);node.title=label;node.innerHTML=icon(label==='Play'?'play':label==='Mute'?'volume':'expand');node.onclick=action;row.append(node);return node;}
   const play=button('Play','▶',async()=>{if(!video.paused){video.pause();return;}try{await video.play();}catch(e){if(e.name!=='AbortError')onPlayError(e.message);}});
   const time=document.createElement('span');time.className='video-time';row.append(time);
   const legend=document.createElement('span');legend.className='video-chapter-legend';row.append(legend);
@@ -127,8 +129,8 @@ export function attachVideoControls(player,video,segments,onSeek,onPlayError,qua
     }
     const current=video.currentTime||0;seek.value=String(current);fill.style.width=(duration>0?Math.max(0,Math.min(100,current/duration*100)):0)+'%';
     const active=ranges.find(r=>current>=r.start&&current<r.end);seek.setAttribute('aria-valuetext',stamp(current)+' of '+stamp(duration)+(active?', '+active.kind:''));
-    time.textContent=stamp(current)+' / '+stamp(duration);play.textContent=video.paused?'▶':'❚❚';play.setAttribute('aria-label',video.paused?'Play':'Pause');play.title=video.paused?'Play':'Pause';
-    const silent=video.muted||video.volume===0;mute.textContent=silent?'🔇':'🔊';mute.setAttribute('aria-label',silent?'Unmute':'Mute');mute.title=silent?'Unmute':'Mute';volume.value=String(video.muted?0:video.volume);
+    time.textContent=stamp(current)+' / '+stamp(duration);play.innerHTML=icon(video.paused?'play':'pause');play.setAttribute('aria-label',video.paused?'Play':'Pause');play.title=video.paused?'Play':'Pause';
+    const silent=video.muted||video.volume===0;mute.innerHTML=icon(silent?'muted':'volume');mute.setAttribute('aria-label',silent?'Unmute':'Mute');mute.title=silent?'Unmute':'Mute';volume.value=String(video.muted?0:video.volume);
   }
   seek.oninput=()=>{onSeek(Number(seek.value));update();};
   seek.onkeydown=event=>{if(!['ArrowRight','ArrowLeft','Home','End'].includes(event.key))return;event.preventDefault();event.stopPropagation();const next=event.key==='Home'?0:event.key==='End'?duration:video.currentTime+(event.key==='ArrowRight'?5:-5);onSeek(next);update();};
@@ -137,7 +139,7 @@ export function attachVideoControls(player,video,segments,onSeek,onPlayError,qua
   const events=['timeupdate','durationchange','loadedmetadata','play','pause','ended','volumechange'];events.forEach(name=>video.addEventListener(name,update));video.textTracks.addEventListener('addtrack',updateCaptions);video.textTracks.addEventListener('change',updateCaptions);
   function videoKey(event){if(event.target!==video)return;if(event.key===' '||event.key==='k'){event.preventDefault();play.click();}else if(event.key==='f'){event.preventDefault();fullscreen.click();}else if(event.key==='m'){event.preventDefault();mute.click();}}
   video.addEventListener('keydown',videoKey);
-  function syncFullscreen(){if(!isFullscreen())unlockOrientation();const label=isFullscreen()?'Exit fullscreen':'Enter fullscreen';fullscreen.setAttribute('aria-label',label);fullscreen.title=label;positionSubtitles();}
+  function syncFullscreen(){if(!isFullscreen())unlockOrientation();const label=isFullscreen()?'Exit fullscreen':'Enter fullscreen';fullscreen.setAttribute('aria-label',label);fullscreen.title=label;fullscreen.innerHTML=icon(isFullscreen()?'collapse':'expand');positionSubtitles();}
   function escapeExpanded(event){if(event.key==='Escape'&&expanded()){exitExpanded();syncFullscreen();}}
   document.addEventListener('keydown',escapeExpanded);document.addEventListener('webkitfullscreenchange',syncFullscreen);video.addEventListener('webkitbeginfullscreen',syncFullscreen);video.addEventListener('webkitendfullscreen',syncFullscreen);
   document.addEventListener('fullscreenchange',syncFullscreen);update();updateCaptions();registerSubtitleTracks();

@@ -16,6 +16,33 @@
 
 .video-controls .video-control-button,.video-controls .video-time,.video-controls .video-chapter-legend{text-shadow:0 1px 4px #000,0 1px 2px #000}.video-controls select{background:#1c2332;text-shadow:none}.video-controls select option{background:#151923;color:#e5ecf7}
 body.player-fullscreen-open{overflow:hidden}
+.player>.video-controls{padding:30px 16px 12px;background:linear-gradient(transparent,#070b13ed 36%,#070b13 100%)}
+.video-controls .video-controls-row{gap:8px;align-items:center}
+.video-controls .video-control-button{display:inline-grid;place-items:center;flex:0 0 auto;width:36px;height:36px;padding:7px;border-radius:10px;color:#e7edf5;transition:background .15s,color .15s}
+.video-controls .video-control-button:first-child{background:var(--accent);color:#14200a}
+.video-controls .video-control-button:hover{background:#263143;color:#d8ffad}
+.video-controls .video-control-button:first-child:hover{background:#caff8d;color:#14200a}
+.video-controls .video-time{font-size:11px;font-variant-numeric:tabular-nums;color:#d3dce9;margin:0 6px}
+.video-controls select{height:32px;padding:5px 9px;border:1px solid #354154;border-radius:8px;background:#171f2d;color:#edf3fc;font-size:11px;cursor:pointer}
+.video-controls select:disabled{opacity:.55;cursor:default}
+.video-controls input.video-volume{width:64px;accent-color:var(--accent)}
+.video-controls .video-seek-track{height:4px;top:8px;background:#68758b66;border-radius:8px}
+.video-controls .video-seek-progress{background:#e6f4ff70}
+.video-controls .video-seek::-webkit-slider-thumb{width:12px;height:12px;background:var(--accent);box-shadow:0 0 0 3px #b6fa6520}
+.video-controls .video-seek::-moz-range-thumb{width:12px;height:12px;background:var(--accent)}
+@media(max-width:700px){
+  .player>.video-controls{padding:18px 10px 10px}
+  .video-controls .video-controls-row{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:7px}
+  .video-controls .video-control-button{width:34px;height:34px;border-radius:9px}
+  .video-controls .video-control-button:first-child{grid-column:1;grid-row:1}
+  .video-controls .video-time{grid-column:2 / span 3;grid-row:1;font-size:10px;margin:0}
+  .video-controls .video-control-button:is([aria-label="Mute"],[aria-label="Unmute"]){grid-column:5;grid-row:1;justify-self:end}
+  .video-controls .video-control-button:is([aria-label="Enter fullscreen"],[aria-label="Exit fullscreen"]){grid-column:6;grid-row:1;justify-self:end}
+  .video-controls .video-captions{grid-column:1 / span 3;grid-row:2}
+  .video-controls .video-quality{grid-column:4 / span 2;grid-row:2}
+  .video-controls .video-speed{grid-column:6;grid-row:2}
+  .video-controls select{width:100%;max-width:none!important;height:30px;font-size:10px;padding:4px 6px}
+}
 #player>video:focus{outline:none}
 #player:focus,#player :is(button,input,select):focus{outline:none}
 #player :is(button,input,select):focus-visible{box-shadow:0 0 0 2px var(--accent)}
