@@ -17,6 +17,11 @@
 .video-controls .video-control-button,.video-controls .video-time,.video-controls .video-chapter-legend{text-shadow:0 1px 4px #000,0 1px 2px #000}.video-controls select{background:#1c2332;text-shadow:none}.video-controls select option{background:#151923;color:#e5ecf7}
 body.player-fullscreen-open{overflow:hidden}
 #player>video:focus{outline:none}
+#player:focus,#player :is(button,input,select):focus{outline:none}
+#player :is(button,input,select):focus-visible{box-shadow:0 0 0 2px var(--accent)}
+#player :is(button,input,select){-webkit-tap-highlight-color:transparent}
+.video-overlay .play-episode.icon-only{width:56px;height:56px;min-width:56px;min-height:56px;padding:0;border-radius:50%;font-size:24px;gap:0}
+.video-overlay .play-episode.icon-only+.video-hint{display:none}
 .video-controls-row{flex-wrap:wrap}
 .video-controls .video-quality{max-width:72px}
 .anime-seasons{margin-top:30px;padding-top:24px;border-top:1px solid var(--border)}

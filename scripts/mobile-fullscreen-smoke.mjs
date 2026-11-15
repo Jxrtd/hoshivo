@@ -8,7 +8,7 @@ const browser=await chromium.launch({executablePath,headless:true});
 try{
   const page=await browser.newPage({viewport:{width:390,height:844},hasTouch:true,isMobile:true});
   await page.route('**/fixture',route=>route.fulfill({contentType:'text/html',body:'<meta name="viewport" content="width=device-width"><link rel="stylesheet" href="/style.css"><div class="watch-layout"><aside class="episode-panel">Episodes</aside><div class="playback-column"><div class="playback-toolbar"><p id="playback-status"></p><button id="reload-source">Reload video</button></div><div class="player" id="player"></div><div class="player-controls">Episode navigation</div><p class="player-note">Notes</p><section id="anime-schedule">Schedule</section></div></div>'}));
-  await page.route('**/api/playback?*',route=>route.fulfill({json:{ok:true,data:{kind:'mp4',url:'/api/media/'+'a'.repeat(48),skip:{},subtitles:[]}}}));
+  await page.route('**/api/playback?*',route=>route.fulfill({json:{ok:true,data:{kind:'mp4',url:'/api/media/'+'a'.repeat(48),skip:{intro:{start:10,end:20}},subtitles:[]}}}));
   await page.goto(`http://127.0.0.1:${server.address().port}/fixture`);
   await page.clock.install();
   await page.evaluate(async()=>{
@@ -16,8 +16,15 @@ try{
     const {setEpisode,destroyPlayer}=await import('/player.js');window.destroyTestPlayer=destroyPlayer;
     await setEpisode({anime:{id:'ap-test'},episode:{number:1}});
     const video=document.querySelector('video');Object.defineProperty(video,'readyState',{get:()=>2});video.pause=()=>{};
+    Object.defineProperty(video,'duration',{get:()=>100});video.currentTime=15;
     document.querySelector('#player').requestFullscreen=async()=>{throw new Error('Unsupported');};
   });
+  await page.locator('#auto-skip-intro').uncheck();
+  await page.getByRole('button',{name:'Skip intro',exact:true}).click();
+  assert.equal(await page.locator('video').evaluate(v=>v.currentTime),20);
+  assert.equal(await page.locator('video').evaluate(v=>document.activeElement===v&&getComputedStyle(v).outlineStyle==='none'),true);
+  await page.locator('video').dispatchEvent('pause');
+  const resume=page.getByRole('button',{name:'Resume episode',exact:true});assert.equal(await resume.textContent(),'▶');assert.equal(await resume.evaluate(b=>b.clientWidth===b.clientHeight),true);
   const playerRect=await page.locator('#player').boundingBox(),skipRect=await page.locator('#skip-controls').boundingBox(),navigationRect=await page.locator('.player-controls').boundingBox();
   assert.ok(skipRect.y>=playerRect.y+playerRect.height);assert.ok(skipRect.y+skipRect.height<=navigationRect.y);
   await page.getByRole('button',{name:'Enter fullscreen',exact:true}).click();

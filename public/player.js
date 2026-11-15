@@ -47,7 +47,7 @@ export async function setEpisode({anime,episode,resumeAt=0,onProgress}){
     const text=document.createElement('span');text.textContent='Auto-skip '+kind;label.append(checkbox,text);skipControls.append(label);
     checkbox.onchange=()=>{settings[kind]=checkbox.checked;try{localStorage.setItem('anikoto-skip-settings',JSON.stringify(settings));}catch{}updateSkips();};
     const manual=document.createElement('button');manual.className='button skip-button';manual.textContent='Skip '+kind;manual.hidden=true;
-    manual.onclick=()=>{const active=activeSkip(source.skip,video.currentTime,video.duration);if(active?.kind===kind)performSkip(active);};
+    manual.onclick=()=>{const active=activeSkip(source.skip,video.currentTime,video.duration);if(active?.kind===kind){performSkip(active);video.focus({preventScroll:true});}};
     skipButtons.append(manual);manualButtons[kind]=manual;
   }
   const skipNote=document.createElement('span');skipNote.className='skip-availability';skipNote.textContent=source.skip?.intro||source.skip?.outro?'Skip timings available': 'No skip timings available for this episode.';
@@ -84,7 +84,7 @@ export async function setEpisode({anime,episode,resumeAt=0,onProgress}){
   }
   video.addEventListener('timeupdate',updateSkips);video.addEventListener('seeked',updateSkips);video.addEventListener('loadedmetadata',updateSkips);
   const fail=text=>{if(!alive())return;clear();failed=true;overlay.hidden=true;status.textContent=text;};
-  const loading=()=>{if(!alive())return;clear();overlay.hidden=hasPlayed;if(!hasPlayed){button.disabled=true;button.textContent='Loading video…';hint.textContent='Waiting for video data.';}status.textContent=hasPlayed?'Buffering…':'Loading video…';timer=setTimeout(()=>fail('The stream did not start within 20 seconds. Reload the video to try again.'),20000);};
+  const loading=()=>{if(!alive())return;clear();button.classList.remove('icon-only');button.removeAttribute('aria-label');overlay.hidden=hasPlayed;if(!hasPlayed){button.disabled=true;button.textContent='Loading video…';hint.textContent='Waiting for video data.';}status.textContent=hasPlayed?'Buffering…':'Loading video…';timer=setTimeout(()=>fail('The stream did not start within 20 seconds. Reload the video to try again.'),20000);};
   button.onclick=async()=>{if(failed){retry();return;}loading();try{await video.play();}catch(e){if(!alive()||e.name==='AbortError')return;if(e.name==='NotAllowedError'){clear();overlay.hidden=false;button.disabled=false;button.textContent='▶ Play episode';hint.textContent='Press Play again to allow playback.';}else fail(`Playback could not start: ${e.message}`);}};
   let initialResume=true;
   video.addEventListener('loadedmetadata',()=>{if(initialResume&&video.dataset.engine==='native'&&resumeAt>0&&Number.isFinite(video.duration)&&resumeAt<video.duration-5)video.currentTime=resumeAt;initialResume=false;});
@@ -93,7 +93,7 @@ export async function setEpisode({anime,episode,resumeAt=0,onProgress}){
   video.addEventListener('timeupdate',()=>{if(alive()&&hasPlayed&&Date.now()-lastSaved>=5000)save();});
   video.addEventListener('ended',save);
   video.addEventListener('waiting',()=>{if(alive()&&!video.paused&&!failed)loading();});
-  video.addEventListener('pause',()=>{if(!alive())return;save();if(failed)return;clear();overlay.hidden=false;button.disabled=false;button.textContent=video.ended?'↻ Replay episode':'▶ Resume episode';hint.textContent='Press Play to continue.';});
+  video.addEventListener('pause',()=>{if(!alive())return;save();if(failed)return;clear();overlay.hidden=false;button.disabled=false;button.classList.add('icon-only');button.textContent=video.ended?'↻':'▶';button.setAttribute('aria-label',video.ended?'Replay episode':'Resume episode');hint.textContent='';});
   video.addEventListener('error',()=>fail(`Playback failed (${video.error?.message||video.error?.code||'unknown error'}). Reload the video to retry.`));
   let qualityOptions=[],selectedQuality='auto';
   const qualityApi={options:()=>qualityOptions,selected:()=>selectedQuality,select:value=>{
