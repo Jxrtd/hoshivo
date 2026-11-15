@@ -23,12 +23,29 @@ try{
   });
   // Keep the app's bundled library from replacing the deterministic engine.
   await page.route('**/vendor/hls.min.js',route=>route.fulfill({contentType:'text/javascript',body:''}));
+  await page.clock.install();
   await page.goto(base+'/#anime/ap-test');
   const quality=page.getByRole('combobox',{name:'Video quality'});await quality.locator('option').filter({hasText:'4K'}).waitFor({state:'attached'});
   await quality.selectOption('2');assert.equal(await page.evaluate(()=>window.testHls.currentLevel),2);
   await quality.selectOption('auto');assert.equal(await page.evaluate(()=>window.testHls.currentLevel),-1);
+  await page.evaluate(()=>{
+    const video=document.querySelector('video');window.bufferSeconds=1;
+    Object.defineProperties(video,{paused:{get:()=>false},seeking:{get:()=>false},duration:{get:()=>600},currentTime:{get:()=>40},buffered:{get:()=>({length:1,start:()=>0,end:()=>40+window.bufferSeconds})}});
+    window.testHls.currentLevel=2;window.testHls.bandwidthEstimate=100;
+    video.dispatchEvent(new Event('playing'));video.dispatchEvent(new Event('waiting'));
+  });
+  await page.clock.runFor(8000);assert.equal(await page.evaluate(()=>window.testHls.autoLevelCapping),1);
+  await page.evaluate(()=>{window.testHls.currentLevel=1;window.bufferSeconds=30;document.querySelector('video').dispatchEvent(new Event('playing'));});
+  await page.clock.runFor(31000);assert.equal(await page.evaluate(()=>window.testHls.autoLevelCapping),-1);
+  await page.locator('#player').dispatchEvent('pointermove');await quality.selectOption('2');
+  await page.evaluate(()=>{window.bufferSeconds=0;document.querySelector('video').dispatchEvent(new Event('waiting'));});
+  await page.clock.runFor(25000);assert.equal(await page.evaluate(()=>window.testHls.currentLevel),2);assert.equal(await page.evaluate(()=>window.testHls.autoLevelCapping),-1);
+  assert.equal(await page.locator('.player-buffering').isVisible(),true);assert.match(await page.locator('#playback-status').textContent(),/Connection is slow/);
+  await page.evaluate(()=>document.querySelector('video').dispatchEvent(new Event('playing')));assert.equal(await page.locator('.player-buffering').isVisible(),false);
   await page.locator('.season-card').nth(1).waitFor();assert.equal(await page.locator('.season-card').nth(1).getAttribute('href'),'#anime/ap-test-2');assert.equal(await page.locator('.season-card.current').count(),1);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+  await page.evaluate(async()=>{const {destroyPlayer}=await import('/player.js');destroyPlayer();window.testHls.autoLevelCapping=2;});
+  await page.clock.runFor(31000);assert.equal(await page.evaluate(()=>window.testHls.autoLevelCapping),2);
   const native=await browser.newPage({viewport:{width:390,height:844}});
   await native.route('**/fixture',route=>route.fulfill({contentType:'text/html',body:'<link rel="stylesheet" href="/style.css"><p id="playback-status"></p><button id="reload-source">Reload</button><div class="player" id="player"></div>'}));
   await native.route('**/api/playback?*',route=>route.fulfill({json:{ok:true,data:{kind:'hls',url:'/api/media/'+token,subtitles:[],skip:{}}}}));
@@ -42,5 +59,5 @@ try{
   });
   await native.getByRole('combobox',{name:'Video quality'}).selectOption({label:'1080p'});
   assert.deepEqual(await native.locator('video').evaluate(v=>[v.dataset.source,v.currentTime,window.playCalls]),['/api/media/'+variant,40,1]);
-  console.log('Passed: 4K/1080p/Auto switching, native HLS switching preserves position and playback, season links, and mobile layout.');
+  console.log('Passed: adaptive downshift and recovery, manual quality preserved, slow buffering without reload errors, monitor cleanup, native quality switching, seasons, and mobile layout.');
 }finally{await browser.close();await new Promise(r=>server.close(r));}

@@ -4,6 +4,24 @@ import {chooseMatch} from './playback.mjs';
 import {findMatch} from './matching.mjs';
 import {hlsQualities,nativeQualities} from './public/quality.js';
 import {relatedSeasons} from './paradise.mjs';
+import {adaptiveCap,adaptiveConfig,bufferAhead} from './public/adaptive.js';
+test('adaptive playback lowers quality for stalls and recovers only after sustained headroom',()=>{
+  const levels=[{bitrate:500000},{bitrate:1500000},{bitrate:4000000}],normal={levels,current:2,cap:-1,buffer:20,bandwidth:10000000};
+  assert.equal(adaptiveCap({...normal,waitingSeconds:3}),1);
+  assert.equal(adaptiveCap({...normal,buffer:2,bandwidth:2000000,lowSeconds:4}),1);
+  assert.equal(adaptiveCap({...normal,droppedRatio:0.15}),1);
+  assert.equal(adaptiveCap({...normal,waitingSeconds:10,cooldown:5}),null);
+  assert.equal(adaptiveCap({...normal,current:1,cap:1,stableSeconds:29}),null);
+  assert.equal(adaptiveCap({...normal,current:1,cap:1,stableSeconds:30}),-1);
+  assert.equal(adaptiveCap({...normal,current:1,cap:1,stableSeconds:30,bandwidth:5000000}),null);
+  assert.equal(adaptiveCap({...normal,levels:[levels[0]],current:0,waitingSeconds:10}),null);
+});
+test('buffer monitoring ignores future ranges and accounts for playback speed',()=>{
+  const video={currentTime:5,playbackRate:2,buffered:{length:2,start:i=>[0,20][i],end:i=>[10,30][i]}};
+  assert.equal(bufferAhead(video),2.5);video.currentTime=15;assert.equal(bufferAhead(video),0);
+  assert.equal(adaptiveConfig({saveData:true,downlink:50}).abrEwmaDefaultEstimate,300000);
+  assert.ok(adaptiveConfig({downlink:1}).abrEwmaDefaultEstimate<1000000);
+});
 test('quality choices reflect actual renditions and reject external variant URLs',()=>{
   assert.deepEqual(hlsQualities([{height:1080,bitrate:100},{height:1080,bitrate:200},{height:2160,bitrate:300}]).map(r=>[r.id,r.label]),[['2','4K'],['1','1080p']]);
   const token='a'.repeat(48),manifest=`#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=100,RESOLUTION=1920x1080\n/api/media/${token}\n#EXT-X-STREAM-INF:RESOLUTION=3840x2160\nhttps://evil.example/video.m3u8`;
