@@ -58,6 +58,14 @@ export function attachVideoControls(player,video,segments,onSeek,onPlayError,qua
   controls.append(row);player.append(controls);
   let hideTimer,disposed=false;
   const originalCuePositions=new Map(),subtitleTracks=new Set();
+  const cueMeasurements=new WeakMap();
+  function cueHeight(cue,height){
+    const width=Math.max(40,video.clientWidth*(cue.size||100)/100*0.95),font=Math.max(12,height*0.05),text=cue.getCueAsHTML().textContent||'';
+    const key=[width,font,text].join(':');const cached=cueMeasurements.get(cue);if(cached?.key===key)return cached.height;
+    const measure=document.createElement('div');
+    measure.style.cssText=`position:fixed;left:0;top:0;visibility:hidden;pointer-events:none;white-space:pre-wrap;overflow-wrap:anywhere;font-family:sans-serif;font-size:${font}px;line-height:1.6;width:${width}px;`;
+    measure.textContent=text||' ';document.body.append(measure);const result=Math.ceil(measure.getBoundingClientRect().height)+4;measure.remove();cueMeasurements.set(cue,{key,height:result});return result;
+  }
   function restoreSubtitlePositions(){
     for(const [cue,original] of originalCuePositions){cue.snapToLines=original.snapToLines;cue.line=original.line;cue.lineAlign=original.lineAlign;}
   }
@@ -68,19 +76,27 @@ export function attachVideoControls(player,video,segments,onSeek,onPlayError,qua
     const height=video.clientHeight;if(height<=0)return;
     const padding=mobile()?Math.max(12,height*0.04):Math.max(28,height*0.08),controlHeight=controls.classList.contains('controls-hidden')?0:controls.offsetHeight;
     const bottom=Math.max(10,100-(controlHeight+padding)/height*100);
+    const activeCues=[];
     for(const textTrack of video.textTracks){
       if(textTrack.mode!=='showing'||!['subtitles','captions'].includes(textTrack.kind))continue;
       for(const cue of Array.from(textTrack.activeCues||[])){
         if(!('line' in cue)||cue.vertical)continue;
         if(!originalCuePositions.has(cue))originalCuePositions.set(cue,{line:cue.line,snapToLines:cue.snapToLines,lineAlign:cue.lineAlign});
+        activeCues.push(cue);
       }
     }
-    for(const [cue,original] of originalCuePositions){
+    const active=new Set(activeCues);let usedHeight=0;
+    activeCues.sort((a,b)=>a.startTime-b.startTime||a.endTime-b.endTime);
+    for(const cue of activeCues){
+      const original=originalCuePositions.get(cue);
       // Keep a safe bottom margin even with hidden controls, preserving top signs.
       if(original.line==='auto'||(original.snapToLines&&original.line<0)||(!original.snapToLines&&original.line>bottom)){
-        if(cue.snapToLines!==false)cue.snapToLines=false;if(cue.line!==bottom)cue.line=bottom;if(cue.lineAlign!=='end')cue.lineAlign='end';
+        const line=Math.max(0,bottom-usedHeight/height*100);
+        if(cue.snapToLines!==false)cue.snapToLines=false;if(cue.line!==line)cue.line=line;if(cue.lineAlign!=='end')cue.lineAlign='end';
+        usedHeight+=cueHeight(cue,height);
       }else{if(cue.snapToLines!==original.snapToLines)cue.snapToLines=original.snapToLines;if(cue.line!==original.line)cue.line=original.line;if(cue.lineAlign!==original.lineAlign)cue.lineAlign=original.lineAlign;}
     }
+    for(const [cue,original] of originalCuePositions){if(active.has(cue))continue;cue.snapToLines=original.snapToLines;cue.line=original.line;cue.lineAlign=original.lineAlign;}
   }
   function registerSubtitleTracks(){for(const textTrack of video.textTracks){if(subtitleTracks.has(textTrack))continue;subtitleTracks.add(textTrack);textTrack.addEventListener('cuechange',positionSubtitles);}positionSubtitles();}
   const subtitleResize=typeof ResizeObserver==='undefined'?null:new ResizeObserver(positionSubtitles);subtitleResize?.observe(video);subtitleResize?.observe(controls);

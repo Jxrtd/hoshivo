@@ -27,13 +27,22 @@ try{
   assert.equal(await page.locator('#playback-status').textContent(),'Press Play to start.');
   await page.evaluate(()=>{
     const video=document.querySelector('video'),track=video.addTextTrack('subtitles','English','en'),cue=new VTTCue(0,100,'Mobile subtitle');
-    track.addCue(cue);track.mode='showing';Object.defineProperty(track,'activeCues',{get:()=>[cue]});window.mobileCue=cue;
+    track.addCue(cue);track.mode='showing';window.mobileActive=[cue];Object.defineProperty(track,'activeCues',{get:()=>window.mobileActive});window.mobileCue=cue;window.mobileTrack=track;
     Object.defineProperty(video,'paused',{get:()=>false});video.dispatchEvent(new Event('play'));
   });
   await page.waitForFunction(()=>typeof window.mobileCue.line==='number');
   const raised=await page.evaluate(()=>window.mobileCue.line);
   await page.clock.runFor(5100);
   const lowered=await page.evaluate(()=>window.mobileCue.line);assert.ok(lowered>raised);assert.ok(lowered>=90&&lowered<=97);
+  const simultaneous=await page.evaluate(()=>{
+    const cue=window.mobileCue,track=window.mobileTrack,second=new VTTCue(1,100,'Another speaker at the same time'),sign=new VTTCue(0,100,'Top sign');
+    sign.snapToLines=false;sign.line=10;track.addCue(second);track.addCue(sign);cue.text='First speaker\nA second line of dialogue';window.mobileActive=[cue,second,sign];track.dispatchEvent(new Event('cuechange'));
+    const gap=(cue.line-second.line)*document.querySelector('video').clientHeight/100;
+    const result={gap,required:Math.max(12,document.querySelector('video').clientHeight*0.05)*3,sign:sign.line};
+    window.mobileActive=[second];track.dispatchEvent(new Event('cuechange'));result.remainingLine=second.line;result.restored=cue.line;
+    cue.text='Mobile subtitle';window.mobileActive=[cue];track.dispatchEvent(new Event('cuechange'));return result;
+  });
+  assert.ok(simultaneous.gap>=simultaneous.required);assert.equal(simultaneous.sign,10);assert.equal(simultaneous.restored,'auto');assert.ok(Math.abs(simultaneous.remainingLine-lowered)<0.1);
   await page.locator('#player').dispatchEvent('pointerdown');
   assert.ok(await page.evaluate(()=>window.mobileCue.line)<lowered);
   await page.getByRole('button',{name:'Exit fullscreen',exact:true}).click();
