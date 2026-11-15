@@ -20,6 +20,10 @@ The ignored .local-providers/anime-sdk checkout comes from https://github.com/he
 
 ## Watching
 
+The player's Video quality menu lists actual stream resolutions, including 4K when provided, plus Auto. Switching native HLS quality preserves the playback position. On iPhone, choose the quality before entering the system fullscreen player. Streams without selectable resolutions show a disabled Auto option.
+
+A Seasons section below the player lists available prequels and sequels linked by AnimeParadise, highlights the current title, and opens the selected season. Titles without another linked season omit the section.
+
 Open an anime and press Play episode. The player uses hls.js where supported, with native HLS as a fallback. It shows a poster before playback and reports loading, errors, and stalled streams. Reload video resolves a fresh stream, with a ten-second refresh cooldown. AnimeParadise provides subtitled playback; availability varies by title and episode.
 
 Episode selection, Next, and Previous update the URL to `#anime/{id}/episode/{number}`. Refreshing or sharing that link opens the selected episode. Browser Back/Forward restores episode selections without rebuilding the title page.

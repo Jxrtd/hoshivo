@@ -2,6 +2,23 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {chooseMatch} from './playback.mjs';
 import {findMatch} from './matching.mjs';
+import {hlsQualities,nativeQualities} from './public/quality.js';
+import {relatedSeasons} from './paradise.mjs';
+test('quality choices reflect actual renditions and reject external variant URLs',()=>{
+  assert.deepEqual(hlsQualities([{height:1080,bitrate:100},{height:1080,bitrate:200},{height:2160,bitrate:300}]).map(r=>[r.id,r.label]),[['2','4K'],['1','1080p']]);
+  const token='a'.repeat(48),manifest=`#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=100,RESOLUTION=1920x1080\n/api/media/${token}\n#EXT-X-STREAM-INF:RESOLUTION=3840x2160\nhttps://evil.example/video.m3u8`;
+  assert.equal(nativeQualities(manifest,'https://hoshivo.test/api/media/'+token).length,1);
+  assert.deepEqual(nativeQualities('#EXTM3U\n#EXTINF:10,\nsegment.ts','https://hoshivo.test/master'),[]);
+});
+test('season links follow sequels and prequels, avoid cycles, and exclude unrelated titles',async()=>{
+  const previous=globalThis.fetch;
+  const row=(n,relations)=>({_id:'season-'+n,link:'season-'+n,title:'Season '+n,animeSeason:{year:2020+n},mappings:{anilist:n},relations});
+  const relation=(n,type='SEQUEL')=>({anilist:n,type:'ANIME',relationType:type});
+  const one=row(1,[relation(2)]),two=row(2,[relation(1,'PREQUEL'),relation(3)]),three=row(3,[relation(2,'PREQUEL')]);
+  const paths={'/anime/season-1':one,'/anime/season-1/relations':[two,row(99,[])],'/anime/season-2/relations':[one,three],'/anime/season-3/relations':[two]};
+  globalThis.fetch=async url=>{const path=new URL(url).pathname;if(!(path in paths))throw new Error('Unexpected provider path');return Response.json({data:paths[path]});};
+  try{const seasons=await relatedSeasons({id:'ap-season-test',source_id:'animeparadise:season-1'});assert.deepEqual(seasons.map(a=>a.title),['Season 1','Season 2','Season 3']);assert.equal(seasons.filter(a=>a.current).length,1);}finally{globalThis.fetch=previous;}
+});
 import {isPublicAddress,validateTarget,rewriteManifest,looksLikeHtml} from './media.mjs';
 test('catalog matching retries alternate names and recognizes provider aliases',async()=>{
   const queries=[];const match=await findMatch({title:'Frieren: Beyond Journey’s End',alternative:'Sousou no Frieren',year:2023},async q=>{queries.push(q);return q==='Sousou no Frieren'?[{source_id:'animeparadise:correct',title:'Different English Label',alternative:'Sousou no Frieren',year:2023}]:[];});

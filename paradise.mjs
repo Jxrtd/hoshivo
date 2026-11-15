@@ -1,4 +1,5 @@
 const cache=new Map(),pending=new Map();
+import {findMatch} from './matching.mjs';
 async function cached(key,fn){const hit=cache.get(key);if(hit&&hit.expires>Date.now())return hit.data;if(pending.has(key))return pending.get(key);const task=fn().then(data=>{if(cache.size>=200)cache.delete(cache.keys().next().value);cache.set(key,{data,expires:Date.now()+300000});return data;}).finally(()=>pending.delete(key));pending.set(key,task);return task;}
 async function providerResponse(path,signal){const r=await fetch('https://api.animeparadise.moe'+path,{signal:signal?AbortSignal.any([signal,AbortSignal.timeout(15000)]):AbortSignal.timeout(15000)});const data=await r.json();if(!r.ok||data.error)throw new Error('AnimeParadise could not load this title. Please retry.');return data;}
 async function provider(path,signal){return (await providerResponse(path,signal)).data;}
@@ -19,4 +20,18 @@ export function paradiseSeries(slug){return cached('series:'+slug,async()=>{
   const info=await provider('/anime/'+encodeURIComponent(slug));const anime=normalizeAnime(info);
   const r=await fetch('http://127.0.0.1:3031/content?provider=animeparadise&mediaId='+encodeURIComponent(anime.source_id),{signal:AbortSignal.timeout(20000)});const units=await r.json();if(!r.ok||!Array.isArray(units))throw new Error('Unable to load the episode list.');
   const episodes=units.map(u=>({id:u.id,number:u.number,title:u.title}));anime.is_sub=episodes.length;return {ok:true,data:{anime,episodes}};
+});}
+export function relatedSeasons(anime){return cached('seasons:'+anime.id,async()=>{
+  const signal=AbortSignal.timeout(25000);
+  const match=anime.source_id?anime:anime.id?.startsWith('ap-')?{source_id:anime.id.slice(3)}:await findMatch(anime,searchAnime,signal);
+  if(!match)return [];
+  const rawId=match.source_id.replace(/^animeparadise:/,'');
+  const root=await provider('/anime/'+encodeURIComponent(rawId),signal),seen=new Map([[root._id,root]]),queue=[root];
+  while(queue.length&&seen.size<16){
+    const node=queue.shift(),ids=new Set((node.relations||[]).filter(r=>r.type==='ANIME'&&['SEQUEL','PREQUEL'].includes(r.relationType)).map(r=>String(r.anilist)));
+    if(!ids.size)continue;
+    const rows=await provider('/anime/'+encodeURIComponent(node._id)+'/relations',signal);
+    for(const row of Array.isArray(rows)?rows:[]){if(seen.size>=16)break;if(!row._id||seen.has(row._id)||!ids.has(String(row.mappings?.anilist))||!/^[a-zA-Z0-9_-]{1,160}$/.test(row.link||''))continue;seen.set(row._id,row);queue.push(row);}
+  }
+  return [...seen.values()].map(row=>({...normalizeAnime(row),current:row._id===root._id})).sort((a,b)=>(Number(a.year)||9999)-(Number(b.year)||9999));
 });}

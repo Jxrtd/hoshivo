@@ -1,5 +1,6 @@
 import {readSkipSettings,activeSkip} from './skip.js';
 import {attachVideoControls} from './video-controls.js';
+import {hlsQualities,nativeQualities} from './quality.js';
 const $=s=>document.querySelector(s);
 let session=null,hls=null,cleanup=()=>{};
 export function destroyPlayer(){
@@ -85,7 +86,8 @@ export async function setEpisode({anime,episode,resumeAt=0,onProgress}){
   const fail=text=>{if(!alive())return;clear();failed=true;overlay.hidden=true;status.textContent=text;};
   const loading=()=>{if(!alive())return;clear();overlay.hidden=hasPlayed;if(!hasPlayed){button.disabled=true;button.textContent='Loading video…';hint.textContent='Waiting for video data.';}status.textContent=hasPlayed?'Buffering…':'Loading video…';timer=setTimeout(()=>fail('The stream did not start within 20 seconds. Reload the video to try again.'),20000);};
   button.onclick=async()=>{if(failed){retry();return;}loading();try{await video.play();}catch(e){if(!alive()||e.name==='AbortError')return;if(e.name==='NotAllowedError'){clear();overlay.hidden=false;button.disabled=false;button.textContent='▶ Play episode';hint.textContent='Press Play again to allow playback.';}else fail(`Playback could not start: ${e.message}`);}};
-  video.addEventListener('loadedmetadata',()=>{if(video.dataset.engine==='native'&&resumeAt>0&&Number.isFinite(video.duration)&&resumeAt<video.duration-5)video.currentTime=resumeAt;});
+  let initialResume=true;
+  video.addEventListener('loadedmetadata',()=>{if(initialResume&&video.dataset.engine==='native'&&resumeAt>0&&Number.isFinite(video.duration)&&resumeAt<video.duration-5)video.currentTime=resumeAt;initialResume=false;});
   video.addEventListener('loadeddata',()=>{if(alive()&&video.videoWidth){clear();status.textContent=video.paused?'Video ready. Press Play to start.':'Video loaded.';}});
   video.addEventListener('playing',()=>{if(!alive())return;clear();failed=false;hasPlayed=true;overlay.hidden=true;button.disabled=false;status.textContent='Playing';updateSkips();save();});
   video.addEventListener('timeupdate',()=>{if(alive()&&hasPlayed&&Date.now()-lastSaved>=5000)save();});
@@ -93,10 +95,21 @@ export async function setEpisode({anime,episode,resumeAt=0,onProgress}){
   video.addEventListener('waiting',()=>{if(alive()&&!video.paused&&!failed)loading();});
   video.addEventListener('pause',()=>{if(!alive())return;save();if(failed)return;clear();overlay.hidden=false;button.disabled=false;button.textContent=video.ended?'↻ Replay episode':'▶ Resume episode';hint.textContent='Press Play to continue.';});
   video.addEventListener('error',()=>fail(`Playback failed (${video.error?.message||video.error?.code||'unknown error'}). Reload the video to retry.`));
-  detachControls=attachVideoControls($('#player'),video,source.skip,seekTo,message=>fail(message));
+  let qualityOptions=[],selectedQuality='auto';
+  const qualityApi={options:()=>qualityOptions,selected:()=>selectedQuality,select:value=>{
+    if(value!=='auto'&&!qualityOptions.some(option=>option.id===value))return;selectedQuality=value;
+    if(video.dataset.engine==='hls.js'){hls.currentLevel=value==='auto'?-1:Number(value);}
+    else{
+      const time=video.currentTime,wasPlaying=!video.paused,url=value==='auto'?source.url:qualityOptions.find(option=>option.id===value).url;
+      video.addEventListener('loadedmetadata',()=>{if(!alive())return;if(Number.isFinite(time))video.currentTime=Math.min(time,Number.isFinite(video.duration)?video.duration:time);if(wasPlaying)video.play().catch(e=>{if(e.name!=='AbortError')status.textContent='Press Play to continue.';});},{once:true,signal:s.abort.signal});video.src=url;video.load();
+    }
+    video.dispatchEvent(new Event('qualitychange'));
+  }};
+  detachControls=attachVideoControls($('#player'),video,source.skip,seekTo,message=>fail(message),qualityApi);
   if(source.kind==='hls'){
-    if(window.Hls?.isSupported()){video.dataset.engine='hls.js';hls=new window.Hls({maxBufferLength:20,maxMaxBufferLength:40,startPosition:resumeAt>0?resumeAt:-1});hls.on(window.Hls.Events.ERROR,(_,data)=>{if(data.fatal)fail(`Video could not load: ${data.details}. Reload the video to retry.`);});hls.loadSource(source.url);hls.attachMedia(video);}
+    if(window.Hls?.isSupported()){video.dataset.engine='hls.js';hls=new window.Hls({maxBufferLength:20,maxMaxBufferLength:40,startPosition:resumeAt>0?resumeAt:-1});hls.on(window.Hls.Events.MANIFEST_PARSED,()=>{if(!alive())return;qualityOptions=hlsQualities(hls.levels);video.dispatchEvent(new Event('qualitychange'));});hls.on(window.Hls.Events.ERROR,(_,data)=>{if(data.fatal)fail(`Video could not load: ${data.details}. Reload the video to retry.`);});hls.loadSource(source.url);hls.attachMedia(video);}
     else if(video.canPlayType('application/vnd.apple.mpegurl')){video.dataset.engine='native';video.src=source.url;}
     else fail('This browser does not support this video format. Try Chrome, Edge, Firefox, or Safari.');
+    if(video.dataset.engine==='native')fetch(source.url,{signal:s.abort.signal}).then(r=>r.ok?r.text():Promise.reject()).then(text=>{if(!alive())return;qualityOptions=nativeQualities(text,new URL(source.url,location.href).href);video.dispatchEvent(new Event('qualitychange'));}).catch(()=>{});
   }else{video.dataset.engine='native';video.src=source.url;}
 }

@@ -4,7 +4,7 @@ import {fileURLToPath} from 'node:url';
 import {resolve,extname} from 'node:path';
 import {resolveEpisode} from './playback.mjs';
 import {relayMedia} from './media.mjs';
-import {searchAnime,paradiseSeries,recentAnime} from './paradise.mjs';
+import {searchAnime,paradiseSeries,recentAnime,relatedSeasons} from './paradise.mjs';
 import {topAnime,PERIODS} from './rankings.mjs';
 import {manilaDate,validDate,releaseSchedule,animeRelease} from './schedule.mjs';
 const root=fileURLToPath(new URL('./public/',import.meta.url));
@@ -53,6 +53,11 @@ export const server=http.createServer(async(req,res)=>{
       const info=series.startsWith('ap-')?await paradiseSeries(series.slice(3)):await api('/series/'+series);
       return json(res,200,{ok:true,data:await animeRelease(info.data.anime)});
     }
+    if(url.pathname==='/api/seasons'){
+      const id=url.searchParams.get('series')||'';if(!/^(?:[1-9]\d*|ap-[a-zA-Z0-9_-]{1,160})$/.test(id))return json(res,400,{ok:false,error:'Invalid anime.'});
+      const info=id.startsWith('ap-')?{data:{anime:{id}}}:await api('/series/'+id);
+      return json(res,200,{ok:true,data:await relatedSeasons(info.data.anime)});
+    }
     if(url.pathname==='/api/top-anime'){
       const period=url.searchParams.get('period')||'day';if(!PERIODS.includes(period))return json(res,400,{ok:false,error:'Choose day, week, or month.'});
       const result=await topAnime(period);return json(res,200,{ok:true,...result});
@@ -82,7 +87,7 @@ export const server=http.createServer(async(req,res)=>{
     if(url.pathname==='/vendor/hls.min.js'){
       const content=await readFile(new URL('./node_modules/hls.js/dist/hls.min.js',import.meta.url));res.writeHead(200,{'Content-Type':'text/javascript; charset=utf-8','Cache-Control':'public, max-age=86400'});res.end(content);return;
     }
-    const files={'/':'index.html','/index.html':'index.html','/app.js':'app.js','/dashboard.js':'dashboard.js','/schedule.js':'schedule.js','/player.js':'player.js','/video-controls.js':'video-controls.js','/skip.js':'skip.js','/style.css':'style.css','/favicon.svg':'favicon.svg'};
+    const files={'/':'index.html','/index.html':'index.html','/app.js':'app.js','/dashboard.js':'dashboard.js','/schedule.js':'schedule.js','/player.js':'player.js','/video-controls.js':'video-controls.js','/skip.js':'skip.js','/style.css':'style.css','/quality.js':'quality.js','/favicon.svg':'favicon.svg'};
     const file=files[url.pathname];
     if(!file){res.writeHead(404);res.end('Not found');return;}
     const content=await readFile(resolve(root,file));
