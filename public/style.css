@@ -16,6 +16,7 @@
 
 .video-controls .video-control-button,.video-controls .video-time,.video-controls .video-chapter-legend{text-shadow:0 1px 4px #000,0 1px 2px #000}.video-controls select{background:#1c2332;text-shadow:none}.video-controls select option{background:#151923;color:#e5ecf7}
 body.player-fullscreen-open{overflow:hidden}
+#player>video:focus{outline:none}
 .video-controls-row{flex-wrap:wrap}
 .video-controls .video-quality{max-width:72px}
 .anime-seasons{margin-top:30px;padding-top:24px;border-top:1px solid var(--border)}
