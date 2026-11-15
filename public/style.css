@@ -23,6 +23,11 @@ body.player-fullscreen-open{overflow:hidden}
 .video-overlay .play-episode.icon-only{width:56px;height:56px;min-width:56px;min-height:56px;padding:0;border-radius:50%;font-size:24px;gap:0}
 .video-overlay .play-episode.icon-only+.video-hint{display:none}
 #player .skip-buttons{bottom:calc(var(--video-controls-height,75px) + 12px);z-index:7}
+.player-loading{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px}
+.loading-spinner{display:block;width:42px;height:42px;border:3px solid #ffffff26;border-top-color:var(--accent);border-radius:50%;animation:player-spin .8s linear infinite}
+.player-buffering{position:absolute;inset:0;display:grid;place-items:center;z-index:5;pointer-events:none}
+@keyframes player-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.loading-spinner{animation:none;border-color:#ffffff26;border-top-color:var(--accent)}}
 .video-controls-row{flex-wrap:wrap}
 .video-controls .video-quality{max-width:72px}
 .anime-seasons{margin-top:30px;padding-top:24px;border-top:1px solid var(--border)}

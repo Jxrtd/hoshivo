@@ -14,11 +14,12 @@ try{
   await page.evaluate(async()=>{
     Object.defineProperty(HTMLMediaElement.prototype,'src',{configurable:true,set(){},get(){return '';}});
     const {setEpisode,destroyPlayer}=await import('/player.js');window.destroyTestPlayer=destroyPlayer;
-    await setEpisode({anime:{id:'ap-test'},episode:{number:1}});
+    const pending=setEpisode({anime:{id:'ap-test'},episode:{number:1}});window.initialLoadingSeen=!!document.querySelector('.player-loading .loading-spinner');await pending;
     const video=document.querySelector('video');Object.defineProperty(video,'readyState',{get:()=>2});video.pause=()=>{};
     Object.defineProperty(video,'duration',{get:()=>100});video.currentTime=15;
     document.querySelector('#player').requestFullscreen=async()=>{throw new Error('Unsupported');};
   });
+  assert.equal(await page.evaluate(()=>window.initialLoadingSeen),true);
   await page.locator('#auto-skip-intro').uncheck();
   await page.getByRole('button',{name:'Skip intro',exact:true}).click();
   assert.equal(await page.locator('video').evaluate(v=>v.currentTime),20);
@@ -39,6 +40,9 @@ try{
   });
   await page.waitForFunction(()=>typeof window.mobileCue.line==='number');
   const raised=await page.evaluate(()=>window.mobileCue.line);
+  await page.locator('video').dispatchEvent('waiting');assert.equal(await page.locator('.player-buffering').isVisible(),true);
+  await page.locator('video').dispatchEvent('playing');assert.equal(await page.locator('.player-buffering').isVisible(),false);
+  assert.equal(await page.locator('#player').getAttribute('aria-busy'),'false');
   await page.clock.runFor(5100);
   const lowered=await page.evaluate(()=>window.mobileCue.line);assert.ok(lowered>raised);assert.ok(lowered>=90&&lowered<=97);
   const simultaneous=await page.evaluate(()=>{
