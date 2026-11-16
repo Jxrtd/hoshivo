@@ -20,6 +20,8 @@ The ignored .local-providers/anime-sdk checkout comes from https://github.com/he
 
 ## Watching
 
+Hover over the seek bar for a timestamp and an on-demand video preview. Preview frames are sampled every five seconds using a separate muted decoder; HLS previews use the lowest rendition and stop loading when the pointer leaves. Frames are cached for the current episode. If the browser cannot decode a preview or playback is buffering, the timestamp remains available. Press Space or K, or click the video surface, to pause/resume; typing and interactive controls retain their normal keyboard behavior.
+
 The player's Video quality menu lists actual stream resolutions, including 4K when provided, plus Auto. Switching native HLS quality preserves the playback position. On iPhone, choose the quality before entering the system fullscreen player. Streams without selectable resolutions show a disabled Auto option.
 
 Auto quality starts conservatively and monitors buffered time, measured bandwidth, stalls, and dropped frames in hls.js playback. It can lower the quality ceiling during sustained trouble and allow higher quality again after at least 30 seconds of stable buffering and sufficient bandwidth. Manual resolution choices are preserved. Native HLS uses the browser's own automatic quality selection. Slow buffering keeps a loading indicator instead of forcing a reload after 20 seconds; provider errors still appear. A stream with only one resolution cannot be downgraded.

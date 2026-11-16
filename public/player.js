@@ -56,7 +56,7 @@ export async function setEpisode({anime,episode,resumeAt=0,onProgress}){
   }
   const skipNote=document.createElement('span');skipNote.className='skip-availability';skipNote.textContent=source.skip?.intro||source.skip?.outro?'Skip timings available': 'No skip timings available for this episode.';
   skipControls.append(skipNote);$('#player').after(skipControls);
-  video.tabIndex=0;video.setAttribute('aria-label','Episode player. Right Arrow: forward 5 seconds. Left Arrow: back 5 seconds.');video.setAttribute('aria-keyshortcuts','ArrowRight ArrowLeft');
+  video.tabIndex=0;video.setAttribute('aria-label','Episode player. Click or press Space to pause or resume. Right Arrow: forward 5 seconds. Left Arrow: back 5 seconds.');video.setAttribute('aria-keyshortcuts','Space k ArrowRight ArrowLeft');
   function seekTo(value){
     if(!alive()||!Number.isFinite(video.duration)||!Number.isFinite(value))return;
     const next=Math.max(0,Math.min(video.duration,value));manualSkipOverride=activeSkip(source.skip,next,video.duration)?.kind||null;
@@ -109,7 +109,7 @@ export async function setEpisode({anime,episode,resumeAt=0,onProgress}){
     }
     video.dispatchEvent(new Event('qualitychange'));
   }};
-  detachControls=attachVideoControls($('#player'),video,source.skip,seekTo,message=>fail(message),qualityApi);
+  detachControls=attachVideoControls($('#player'),video,source.skip,seekTo,message=>fail(message),qualityApi,source);
   if(source.kind==='hls'){
     if(window.Hls?.isSupported()){video.dataset.engine='hls.js';hls=new window.Hls({...adaptiveConfig(navigator.connection),startPosition:resumeAt>0?resumeAt:-1});hls.on(window.Hls.Events.MANIFEST_PARSED,()=>{if(!alive())return;qualityOptions=hlsQualities(hls.levels);video.dispatchEvent(new Event('qualitychange'));});hls.on(window.Hls.Events.ERROR,(_,data)=>{if(data.fatal)fail(`Video could not load: ${data.details}. Reload the video to retry.`);});detachMonitor=monitorPlayback(video,hls,()=>selectedQuality==='auto'&&!failed,cap=>{if(alive())status.textContent=cap>=0?'Auto quality adjusted for smoother playback.':'Auto quality can increase as the connection improves.';});hls.loadSource(source.url);hls.attachMedia(video);}
     else if(video.canPlayType('application/vnd.apple.mpegurl')){video.dataset.engine='native';video.src=source.url;}

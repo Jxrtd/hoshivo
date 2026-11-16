@@ -16,6 +16,10 @@
 
 .video-controls .video-control-button,.video-controls .video-time,.video-controls .video-chapter-legend{text-shadow:0 1px 4px #000,0 1px 2px #000}.video-controls select{background:#1c2332;text-shadow:none}.video-controls select option{background:#151923;color:#e5ecf7}
 body.player-fullscreen-open{overflow:hidden}
+.video-seek-tooltip{width:174px;max-width:80vw;white-space:normal;text-align:center;padding:6px;border-radius:9px;border-color:#354154;background:#0d1420;box-shadow:0 5px 20px #0007}
+.timeline-preview{display:block;width:160px;max-width:100%;height:90px;object-fit:cover;border-radius:5px;margin-bottom:7px}
+.timeline-preview-time{display:block;font:11px ui-monospace,monospace;color:#edf3fc;padding:3px}
+.timeline-preview-note{display:block;font-size:10px;line-height:1.5;color:#a2b0c6}.timeline-preview-note:empty{display:none}
 .player>.video-controls{padding:30px 16px 12px;background:linear-gradient(transparent,#070b13ed 36%,#070b13 100%)}
 .video-controls .video-controls-row{gap:8px;align-items:center}
 .video-controls .video-control-button{display:inline-grid;place-items:center;flex:0 0 auto;width:36px;height:36px;padding:7px;border-radius:10px;color:#e7edf5;transition:background .15s,color .15s}

@@ -17,6 +17,7 @@
     "test:episodes": "node scripts/episodes-smoke.mjs",
     "test:controls": "node scripts/controls-smoke.mjs",
     "test:quality-seasons": "node scripts/quality-seasons-smoke.mjs",
+    "test:preview": "node scripts/preview-playback-smoke.mjs",
     "test:idle": "node scripts/idle-smoke.mjs",
     "test:subtitles": "node scripts/subtitle-position-smoke.mjs",
     "test:episode-urls": "node scripts/episode-url-smoke.mjs"
