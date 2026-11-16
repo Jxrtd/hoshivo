@@ -15,9 +15,22 @@ export function adaptiveCap({levels,current,cap=-1,buffer,bandwidth,lowSeconds=0
 }
 export function adaptiveConfig(connection){
   const hint=Number(connection?.downlink)*1e6;
-  return {maxBufferLength:40,maxMaxBufferLength:60,backBufferLength:20,maxBufferSize:40*1000*1000,startLevel:-1,
+  return {enableWorker:true,progressive:true,maxBufferHole:0.3,maxBufferLength:60,maxMaxBufferLength:90,backBufferLength:20,maxBufferSize:40*1000*1000,startLevel:-1,
     abrEwmaDefaultEstimate:connection?.saveData?300000:Math.max(300000,Math.min(2000000,Number.isFinite(hint)&&hint>0?hint*0.6:500000)),
     abrBandWidthFactor:0.8,abrBandWidthUpFactor:0.6,maxStarvationDelay:2,maxLoadingDelay:4};
+}
+export function streamRecovery(engine,now=()=>Date.now()){
+  let since=now(),networkRetries=0,mediaRetries=0;
+  return error=>{
+    if(now()-since>60000){since=now();networkRetries=0;mediaRetries=0;}
+    const code=Number(error.response?.code||error.response?.status||0);
+    if(code>=400&&code<500&&![408,429].includes(code))return false;
+    try{
+      if(error.type==='networkError'&&networkRetries<2){networkRetries++;engine.startLoad(-1);return true;}
+      if(error.type==='mediaError'&&mediaRetries<1){mediaRetries++;engine.recoverMediaError();return true;}
+    }catch{}
+    return false;
+  };
 }
 export function monitorPlayback(video,engine,isAuto,onChange){
   let started=false,waitingAt=0,graceUntil=0,lastChange=0,stableSeconds=0,lowSeconds=0,previousFrames=null,droppedRatio=0,lastFrameAt=0;

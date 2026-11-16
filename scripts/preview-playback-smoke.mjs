@@ -14,7 +14,7 @@ try{
   await page.route('**/preview-media',r=>r.fulfill({contentType:'video/webm',body:Buffer.from(clip,'base64')}));
   await page.evaluate(async()=>{
     const {attachVideoControls}=await import('/video-controls.js'),video=document.querySelector('video');window.paused=true;window.position=12;
-    Object.defineProperties(video,{paused:{get:()=>window.paused},duration:{get:()=>100},currentTime:{get:()=>window.position,set:v=>{window.position=v;}},readyState:{get:()=>4}});
+    Object.defineProperties(video,{paused:{get:()=>window.paused},duration:{get:()=>100},currentTime:{get:()=>window.position,set:v=>{window.position=v;}},readyState:{get:()=>4},buffered:{get:()=>({length:1,start:()=>0,end:()=>60})}});
     video.play=async()=>{window.paused=false;video.dispatchEvent(new Event('play'));};video.pause=()=>{window.paused=true;video.dispatchEvent(new Event('pause'));};
     window.removeTestControls=attachVideoControls(document.querySelector('#player'),video,{},v=>{window.position=v;},message=>{throw new Error(message);},undefined,{kind:'mp4',url:'/preview-media'});
   });
@@ -25,6 +25,7 @@ try{
   const seek=page.getByRole('slider',{name:'Seek video'}),rect=await seek.boundingBox();await page.mouse.move(rect.x+rect.width*0.02,rect.y+rect.height/2);
   await page.waitForFunction(()=>{const c=document.querySelector('.timeline-preview');return c&&!c.hidden&&c.getContext('2d').getImageData(80,45,1,1).data[0]>200;},null,{timeout:15000});
   assert.equal(await page.evaluate(()=>window.position),12);assert.equal(await page.evaluate(()=>window.paused),false);
+  await page.locator('video').dispatchEvent('waiting');assert.match(await page.locator('.timeline-preview-note').textContent(),/paused while video buffers/);
   await page.mouse.move(5,5);assert.equal(await page.locator('.video-seek-tooltip').isVisible(),false);
   await page.evaluate(()=>window.removeTestControls());await page.locator('input').evaluate(input=>input.blur());await page.keyboard.press('Space');assert.equal(await page.evaluate(()=>window.paused),false);
   console.log('Passed: real decoded thumbnail preview, main playback unchanged by hover, Space and surface click toggles, input exclusion, and cleanup.');

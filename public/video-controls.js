@@ -132,8 +132,8 @@ export function attachVideoControls(player,video,segments,onSeek,onPlayError,qua
     }
     const current=video.currentTime||0;seek.value=String(current);fill.style.width=(duration>0?Math.max(0,Math.min(100,current/duration*100)):0)+'%';
     const active=ranges.find(r=>current>=r.start&&current<r.end);seek.setAttribute('aria-valuetext',stamp(current)+' of '+stamp(duration)+(active?', '+active.kind:''));
-    time.textContent=stamp(current)+' / '+stamp(duration);play.innerHTML=icon(video.paused?'play':'pause');play.setAttribute('aria-label',video.paused?'Play':'Pause');play.title=video.paused?'Play':'Pause';
-    const silent=video.muted||video.volume===0;mute.innerHTML=icon(silent?'muted':'volume');mute.setAttribute('aria-label',silent?'Unmute':'Mute');mute.title=silent?'Unmute':'Mute';volume.value=String(video.muted?0:video.volume);
+    time.textContent=stamp(current)+' / '+stamp(duration);if(play.dataset.state!==(video.paused?'play':'pause')){play.dataset.state=video.paused?'play':'pause';play.innerHTML=icon(play.dataset.state);}play.setAttribute('aria-label',video.paused?'Play':'Pause');play.title=video.paused?'Play':'Pause';
+    const silent=video.muted||video.volume===0;if(mute.dataset.state!==(silent?'muted':'volume')){mute.dataset.state=silent?'muted':'volume';mute.innerHTML=icon(mute.dataset.state);}mute.setAttribute('aria-label',silent?'Unmute':'Mute');mute.title=silent?'Unmute':'Mute';volume.value=String(video.muted?0:video.volume);
   }
   seek.oninput=()=>{onSeek(Number(seek.value));update();};
   seek.onkeydown=event=>{if(!['ArrowRight','ArrowLeft','Home','End'].includes(event.key))return;event.preventDefault();event.stopPropagation();const next=event.key==='Home'?0:event.key==='End'?duration:video.currentTime+(event.key==='ArrowRight'?5:-5);onSeek(next);update();};

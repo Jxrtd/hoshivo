@@ -3,6 +3,7 @@ import {lookup} from 'node:dns/promises';
 import {isIP} from 'node:net';
 import {Readable} from 'node:stream';
 const tickets=new Map();
+const ticketKeys=new Map();
 const UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/147.0.0.0 Safari/537.36';
 export function isPublicAddress(address){
   const ip=address.toLowerCase().replace(/^\[|\]$/g,'');
@@ -38,9 +39,12 @@ export async function readLimited(response,limit=1024*1024){
 }
 export function issueMedia(url,headers={}){
   const u=new URL(url);if(u.protocol!=='https:')throw new Error('Media must use HTTPS.');
-  for(const [key,value] of tickets)if(value.expires<Date.now())tickets.delete(key);
-  if(tickets.size>=8000)tickets.delete(tickets.keys().next().value);
-  const token=randomBytes(24).toString('hex');tickets.set(token,{url:u.href,headers:mediaHeaders(headers),expires:Date.now()+60*60*1000});return `/api/media/${token}`;
+  const safeHeaders=mediaHeaders(headers),identity=JSON.stringify([u.href,Object.entries(safeHeaders).sort(([a],[b])=>a.localeCompare(b))]);
+  const existing=ticketKeys.get(identity),hit=tickets.get(existing);if(hit&&hit.expires>Date.now()+5*60*1000)return `/api/media/${existing}`;
+  function remove(key,value){tickets.delete(key);if(ticketKeys.get(value.identity)===key)ticketKeys.delete(value.identity);}
+  for(const [key,value] of tickets)if(value.expires<Date.now())remove(key,value);
+  if(tickets.size>=8000){const first=tickets.keys().next().value;remove(first,tickets.get(first));}
+  const token=randomBytes(24).toString('hex');tickets.set(token,{url:u.href,headers:safeHeaders,identity,expires:Date.now()+60*60*1000});ticketKeys.set(identity,token);return `/api/media/${token}`;
 }
 export function rewriteManifest(text,base,wrap){
   return text.split(/\r?\n/).map(line=>{
@@ -71,7 +75,7 @@ export async function relayMedia(req,res,token){
     // Some AnimeParadise segments contain valid MPEG-TS bytes but are labelled
     // text/html by the CDN. Inspect the bytes rather than dropping those segments.
     if(ct.includes('text/html'))ct=first.value[0]===0x47?'video/mp2t':'application/octet-stream';
-    const out={'Content-Type':ct,'Cache-Control':'no-store'};for(const name of ['content-length','content-range','accept-ranges']){const value=upstream.headers.get(name);if(value&&!(name==='content-length'&&upstream.headers.get('content-encoding')))out[name]=value;}
+    const out={'Content-Type':ct,'Cache-Control':'private, max-age=120'};for(const name of ['content-length','content-range','accept-ranges']){const value=upstream.headers.get(name);if(value&&!(name==='content-length'&&upstream.headers.get('content-encoding')))out[name]=value;}
     async function* chunks(){try{yield first.value;while(true){const part=await reader.read();if(part.done)break;yield part.value;}}finally{await reader.cancel().catch(()=>{});}}
     res.writeHead(upstream.status,out);await new Promise((done,fail)=>{const body=Readable.from(chunks());body.on('error',fail);body.on('end',done);res.on('close',done);body.pipe(res);});
   }catch(error){if(!res.headersSent){res.writeHead(502);res.end(error.message);}else res.destroy();}finally{clearTimeout(timer);}

@@ -4,7 +4,18 @@ import {chooseMatch} from './playback.mjs';
 import {findMatch} from './matching.mjs';
 import {hlsQualities,nativeQualities} from './public/quality.js';
 import {relatedSeasons} from './paradise.mjs';
-import {adaptiveCap,adaptiveConfig,bufferAhead} from './public/adaptive.js';
+import {adaptiveCap,adaptiveConfig,bufferAhead,streamRecovery} from './public/adaptive.js';
+import {issueMedia} from './media.mjs';
+test('temporary stream failures recover without endless retries or retrying missing episodes',()=>{
+  let now=0,network=0,media=0;const recover=streamRecovery({startLoad:position=>{assert.equal(position,-1);network++;},recoverMediaError:()=>media++},()=>now);
+  assert.equal(recover({type:'networkError',response:{code:404}}),false);
+  assert.equal(recover({type:'networkError'}),true);assert.equal(recover({type:'networkError'}),true);assert.equal(recover({type:'networkError'}),false);
+  assert.equal(recover({type:'mediaError'}),true);assert.equal(recover({type:'mediaError'}),false);
+  now=61000;assert.equal(recover({type:'networkError'}),true);assert.equal(network,3);assert.equal(media,1);
+});
+test('repeat segment links reuse a token without sharing different provider headers',()=>{
+  const url='https://example.com/segment-cache.ts';assert.equal(issueMedia(url,{Referer:'https://provider.example/'}),issueMedia(url,{Referer:'https://provider.example/'}));assert.notEqual(issueMedia(url,{Referer:'https://provider.example/'}),issueMedia(url,{Referer:'https://other.example/'}));
+});
 test('adaptive playback lowers quality for stalls and recovers only after sustained headroom',()=>{
   const levels=[{bitrate:500000},{bitrate:1500000},{bitrate:4000000}],normal={levels,current:2,cap:-1,buffer:20,bandwidth:10000000};
   assert.equal(adaptiveCap({...normal,waitingSeconds:3}),1);

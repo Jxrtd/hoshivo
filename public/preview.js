@@ -1,3 +1,4 @@
+import {bufferAhead} from './adaptive.js';
 export function attachPreview(host,source,main){
   const canvas=document.createElement('canvas');canvas.width=160;canvas.height=90;canvas.className='timeline-preview';canvas.hidden=true;
   const note=document.createElement('span');note.className='timeline-preview-note';host.prepend(canvas,note);
@@ -15,7 +16,7 @@ export function attachPreview(host,source,main){
   }
   function load(){
     if(!visible||disposed||cache.has(wanted))return;
-    if(!source?.url||!context||(!main.paused&&main.readyState<3)){note.textContent='Preview unavailable while buffering';return;}
+    if(!source?.url||!context||(!main.paused&&(main.readyState<3||bufferAhead(main)<12))){stop();note.textContent='Preview paused while video buffers';return;}
     clearTimeout(deadline);deadline=setTimeout(unavailable,10000);
     if(media){seek();return;}
     media=document.createElement('video');media.muted=true;media.playsInline=true;media.preload='auto';media.crossOrigin='anonymous';events=new AbortController();
@@ -26,9 +27,11 @@ export function attachPreview(host,source,main){
     }else if(source.kind!=='hls'||media.canPlayType('application/vnd.apple.mpegurl'))media.src=source.url;
     else unavailable();
   }
+  function prioritizePlayback(){if(visible){stop();canvas.hidden=true;note.textContent='Preview paused while video buffers';}}
+  main.addEventListener('waiting',prioritizePlayback);main.addEventListener('seeking',prioritizePlayback);
   return {
     show(time){if(disposed)return;visible=true;const next=Math.max(0,Math.floor(time/5)*5);if(next===wanted&&(timer||!canvas.hidden))return;wanted=next;clearTimeout(timer);if(cache.has(wanted)){display(cache.get(wanted));return;}canvas.hidden=true;note.textContent='Loading preview…';timer=setTimeout(()=>{timer=null;load();},250);},
     hide(){visible=false;canvas.hidden=true;note.textContent='';stop();},
-    destroy(){disposed=true;visible=false;stop();cache.clear();canvas.remove();note.remove();}
+    destroy(){disposed=true;visible=false;stop();main.removeEventListener('waiting',prioritizePlayback);main.removeEventListener('seeking',prioritizePlayback);cache.clear();canvas.remove();note.remove();}
   };
 }

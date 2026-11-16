@@ -1,7 +1,7 @@
 import {readSkipSettings,activeSkip} from './skip.js';
 import {attachVideoControls} from './video-controls.js';
 import {hlsQualities,nativeQualities} from './quality.js';
-import {adaptiveConfig,monitorPlayback} from './adaptive.js';
+import {adaptiveConfig,monitorPlayback,streamRecovery} from './adaptive.js';
 const $=s=>document.querySelector(s);
 let session=null,hls=null,cleanup=()=>{};
 export function destroyPlayer(){
@@ -111,7 +111,7 @@ export async function setEpisode({anime,episode,resumeAt=0,onProgress}){
   }};
   detachControls=attachVideoControls($('#player'),video,source.skip,seekTo,message=>fail(message),qualityApi,source);
   if(source.kind==='hls'){
-    if(window.Hls?.isSupported()){video.dataset.engine='hls.js';hls=new window.Hls({...adaptiveConfig(navigator.connection),startPosition:resumeAt>0?resumeAt:-1});hls.on(window.Hls.Events.MANIFEST_PARSED,()=>{if(!alive())return;qualityOptions=hlsQualities(hls.levels);video.dispatchEvent(new Event('qualitychange'));});hls.on(window.Hls.Events.ERROR,(_,data)=>{if(data.fatal)fail(`Video could not load: ${data.details}. Reload the video to retry.`);});detachMonitor=monitorPlayback(video,hls,()=>selectedQuality==='auto'&&!failed,cap=>{if(alive())status.textContent=cap>=0?'Auto quality adjusted for smoother playback.':'Auto quality can increase as the connection improves.';});hls.loadSource(source.url);hls.attachMedia(video);}
+    if(window.Hls?.isSupported()){video.dataset.engine='hls.js';hls=new window.Hls({...adaptiveConfig(navigator.connection),startPosition:resumeAt>0?resumeAt:-1});hls.on(window.Hls.Events.MANIFEST_PARSED,()=>{if(!alive())return;qualityOptions=hlsQualities(hls.levels);video.dispatchEvent(new Event('qualitychange'));});const recover=streamRecovery(hls);hls.on(window.Hls.Events.ERROR,(_,data)=>{if(!alive()||!data.fatal)return;if(recover(data)){loading();status.textContent='Reconnecting to the video...';}else fail(`Video could not load: ${data.details}. Reload the video to retry.`);});detachMonitor=monitorPlayback(video,hls,()=>selectedQuality==='auto'&&!failed,cap=>{if(alive())status.textContent=cap>=0?'Auto quality adjusted for smoother playback.':'Auto quality can increase as the connection improves.';});hls.loadSource(source.url);hls.attachMedia(video);}
     else if(video.canPlayType('application/vnd.apple.mpegurl')){video.dataset.engine='native';video.src=source.url;}
     else fail('This browser does not support this video format. Try Chrome, Edge, Firefox, or Safari.');
     if(video.dataset.engine==='native')fetch(source.url,{signal:s.abort.signal}).then(r=>r.ok?r.text():Promise.reject()).then(text=>{if(!alive())return;qualityOptions=nativeQualities(text,new URL(source.url,location.href).href);video.dispatchEvent(new Event('qualitychange'));}).catch(()=>{});
