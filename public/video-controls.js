@@ -17,6 +17,7 @@ export function attachVideoControls(player,video,segments,onSeek,onPlayError,qua
   const row=document.createElement('div');row.className='video-controls-row';
   function button(label,text,action){const node=document.createElement('button');node.type='button';node.className='video-control-button';node.setAttribute('aria-label',label);node.title=label;node.innerHTML=icon(label==='Play'?'play':label==='Mute'?'volume':'expand');node.onclick=action;row.append(node);return node;}
   const play=button('Play','▶',async()=>{if(!video.paused){video.pause();return;}try{await video.play();}catch(e){if(e.name!=='AbortError')onPlayError(e.message);}});
+  const center=document.createElement('button');center.type='button';center.className='video-control-button video-center-toggle';center.hidden=true;center.onclick=()=>play.click();player.append(center);
   function jump(seconds){if(!Number.isFinite(video.duration)||video.duration<=0)return;onSeek(Math.max(0,Math.min(video.duration,video.currentTime+seconds)));update();}
   const rewind=button('Rewind 10 seconds','',()=>jump(-10));rewind.classList.add('video-rewind');rewind.innerHTML=icon('rewind');
   const forward=button('Forward 10 seconds','',()=>jump(10));forward.classList.add('video-forward');forward.innerHTML=icon('forward');
@@ -115,10 +116,11 @@ export function attachVideoControls(player,video,segments,onSeek,onPlayError,qua
     if(!tooltip.hidden&&window.matchMedia('(hover:hover)').matches){hideTimer=setTimeout(hideControls,5000);return;}
     if(controls.contains(document.activeElement)&&document.activeElement.tagName==='SELECT'){hideTimer=setTimeout(hideControls,5000);return;}
     if(controls.contains(document.activeElement))video.focus({preventScroll:true});
+    if(document.activeElement===center)video.focus({preventScroll:true});center.inert=true;
     tooltip.hidden=true;controls.classList.add('controls-hidden');controls.inert=true;controls.setAttribute('aria-hidden','true');player.classList.add('controls-idle');positionSubtitles();
   }
   function showControls(){
-    if(disposed)return;clearTimeout(hideTimer);controls.classList.remove('controls-hidden');controls.inert=false;controls.removeAttribute('aria-hidden');player.classList.remove('controls-idle');positionSubtitles();
+    if(disposed)return;clearTimeout(hideTimer);controls.classList.remove('controls-hidden');controls.inert=false;center.inert=false;controls.removeAttribute('aria-hidden');player.classList.remove('controls-idle');positionSubtitles();
     if(!video.paused&&!video.ended)hideTimer=setTimeout(hideControls,5000);
   }
   function onNavigationKey(event){if(event.key==='Tab')showControls();}
@@ -128,6 +130,8 @@ export function attachVideoControls(player,video,segments,onSeek,onPlayError,qua
   video.addEventListener('play',showControls);video.addEventListener('pause',showControls);video.addEventListener('ended',showControls);
   let duration=NaN,ranges=[];
   function update(){
+    center.hidden=!mobile()||video.paused||video.ended;
+    const centerState=video.paused?'play':'pause';if(center.dataset.state!==centerState){center.dataset.state=centerState;center.innerHTML=icon(centerState);center.setAttribute('aria-label',video.paused?'Play video':'Pause video');}
     rewind.disabled=forward.disabled=!Number.isFinite(video.duration)||video.duration<=0;
     if(duration!==video.duration){
       duration=video.duration;ranges=timelineSegments(segments,duration);track.replaceChildren();legend.replaceChildren();
@@ -147,10 +151,10 @@ export function attachVideoControls(player,video,segments,onSeek,onPlayError,qua
   const events=['timeupdate','durationchange','loadedmetadata','play','pause','ended','volumechange'];events.forEach(name=>video.addEventListener(name,update));video.textTracks.addEventListener('addtrack',updateCaptions);video.textTracks.addEventListener('change',updateCaptions);
   function videoKey(event){if(event.altKey||event.ctrlKey||event.metaKey||event.isComposing)return;const target=event.target;if(target instanceof Element&&(target.closest('input,textarea,select,button,a,[role="textbox"],[role="slider"]')||target.isContentEditable))return;if(event.key===' '||event.key==='k'){event.preventDefault();if(!event.repeat)play.click();}else if(event.target!==video)return;else if(event.key==='f'){event.preventDefault();fullscreen.click();}else if(event.key==='m'){event.preventDefault();mute.click();}}
   document.addEventListener('keydown',videoKey);video.addEventListener('click',clickVideo);
-  function clickVideo(){play.click();}
+  function clickVideo(event){if(mobile()||event.pointerType==='touch'||event.pointerType==='pen'){showControls();return;}play.click();}
   function syncFullscreen(){if(!isFullscreen())unlockOrientation();const label=isFullscreen()?'Exit fullscreen':'Enter fullscreen';fullscreen.setAttribute('aria-label',label);fullscreen.title=label;fullscreen.innerHTML=icon(isFullscreen()?'collapse':'expand');positionSubtitles();}
   function escapeExpanded(event){if(event.key==='Escape'&&expanded()){exitExpanded();syncFullscreen();}}
   document.addEventListener('keydown',escapeExpanded);document.addEventListener('webkitfullscreenchange',syncFullscreen);video.addEventListener('webkitbeginfullscreen',syncFullscreen);video.addEventListener('webkitendfullscreen',syncFullscreen);
   document.addEventListener('fullscreenchange',syncFullscreen);update();updateCaptions();registerSubtitleTracks();
-  return ()=>{video.removeEventListener('qualitychange',updateQuality);exitExpanded();document.removeEventListener('keydown',escapeExpanded);document.removeEventListener('webkitfullscreenchange',syncFullscreen);video.removeEventListener('webkitbeginfullscreen',syncFullscreen);video.removeEventListener('webkitendfullscreen',syncFullscreen);disposed=true;clearTimeout(hideTimer);subtitleResize?.disconnect();video.textTracks.removeEventListener('addtrack',registerSubtitleTracks);video.textTracks.removeEventListener('change',positionSubtitles);for(const textTrack of subtitleTracks)textTrack.removeEventListener('cuechange',positionSubtitles);restoreSubtitlePositions();originalCuePositions.clear();player.removeEventListener('pointermove',showControls);player.removeEventListener('pointerdown',showControls);player.removeEventListener('keydown',onNavigationKey);player.removeEventListener('focusin',onControlFocus);video.removeEventListener('play',showControls);video.removeEventListener('pause',showControls);video.removeEventListener('ended',showControls);events.forEach(name=>video.removeEventListener(name,update));video.textTracks.removeEventListener('addtrack',updateCaptions);video.textTracks.removeEventListener('change',updateCaptions);document.removeEventListener('keydown',videoKey);video.removeEventListener('click',clickVideo);document.removeEventListener('fullscreenchange',syncFullscreen);controls.remove();player.classList.remove('has-custom-controls','controls-idle');};
+  return ()=>{video.removeEventListener('qualitychange',updateQuality);exitExpanded();document.removeEventListener('keydown',escapeExpanded);document.removeEventListener('webkitfullscreenchange',syncFullscreen);video.removeEventListener('webkitbeginfullscreen',syncFullscreen);video.removeEventListener('webkitendfullscreen',syncFullscreen);disposed=true;clearTimeout(hideTimer);subtitleResize?.disconnect();video.textTracks.removeEventListener('addtrack',registerSubtitleTracks);video.textTracks.removeEventListener('change',positionSubtitles);for(const textTrack of subtitleTracks)textTrack.removeEventListener('cuechange',positionSubtitles);restoreSubtitlePositions();originalCuePositions.clear();player.removeEventListener('pointermove',showControls);player.removeEventListener('pointerdown',showControls);player.removeEventListener('keydown',onNavigationKey);player.removeEventListener('focusin',onControlFocus);video.removeEventListener('play',showControls);video.removeEventListener('pause',showControls);video.removeEventListener('ended',showControls);events.forEach(name=>video.removeEventListener(name,update));video.textTracks.removeEventListener('addtrack',updateCaptions);video.textTracks.removeEventListener('change',updateCaptions);document.removeEventListener('keydown',videoKey);video.removeEventListener('click',clickVideo);document.removeEventListener('fullscreenchange',syncFullscreen);center.remove();controls.remove();player.classList.remove('has-custom-controls','controls-idle');};
 }

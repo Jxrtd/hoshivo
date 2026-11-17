@@ -29,5 +29,21 @@ try{
   await page.evaluate(()=>window.position=96);await page.getByRole('button',{name:'Forward 10 seconds',exact:true}).click();assert.equal(await page.evaluate(()=>window.position),100);
   for(const width of [320,390]){await page.setViewportSize({width,height:700});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);assert.equal(await page.getByRole('button',{name:'Forward 10 seconds',exact:true}).isVisible(),true);}
   await page.evaluate(()=>window.removeTestControls());await page.locator('input').evaluate(input=>input.blur());await page.keyboard.press('Space');assert.equal(await page.evaluate(()=>window.paused),false);
+  const touch=await browser.newPage({viewport:{width:390,height:844},hasTouch:true,isMobile:true,reducedMotion:'reduce'});
+  await touch.route('**/touch-fixture',r=>r.fulfill({contentType:'text/html',body:'<meta name="viewport" content="width=device-width"><link rel="stylesheet" href="/style.css"><div id="player" class="player"><video></video></div>'}));
+  await touch.clock.install();await touch.goto('http://127.0.0.1:'+server.address().port+'/touch-fixture');
+  await touch.evaluate(async()=>{
+    const {attachVideoControls}=await import('/video-controls.js'),video=document.querySelector('video');window.touchPaused=false;
+    Object.defineProperties(video,{paused:{get:()=>window.touchPaused},duration:{get:()=>100},readyState:{get:()=>4}});
+    video.play=async()=>{window.touchPaused=false;video.dispatchEvent(new Event('play'));};video.pause=()=>{window.touchPaused=true;video.dispatchEvent(new Event('pause'));};
+    window.touchCleanup=attachVideoControls(document.querySelector('#player'),video,{},()=>{},()=>{});video.dispatchEvent(new Event('play'));
+  });
+  await touch.clock.runFor(5100);await touch.locator('.video-center-toggle').waitFor({state:'hidden'});
+  await touch.locator('video').tap({position:{x:20,y:20}});assert.equal(await touch.evaluate(()=>window.touchPaused),false);await touch.getByRole('button',{name:'Pause video',exact:true}).waitFor({state:'visible'});
+  await touch.getByRole('button',{name:'Pause video',exact:true}).tap();assert.equal(await touch.evaluate(()=>window.touchPaused),true);
+  await touch.getByRole('button',{name:'Play',exact:true}).tap();assert.equal(await touch.evaluate(()=>window.touchPaused),false);
+  await touch.getByRole('button',{name:'Pause',exact:true}).tap();assert.equal(await touch.evaluate(()=>window.touchPaused),true);
+  await touch.locator('video').tap({position:{x:20,y:20}});assert.equal(await touch.evaluate(()=>window.touchPaused),true);
+  await touch.evaluate(()=>window.touchCleanup());assert.equal(await touch.locator('.video-center-toggle').count(),0);
   console.log('Passed: timestamp-only hover without video requests, main playback unchanged, Space and surface click toggles, input exclusion, and cleanup.');
 }finally{await browser.close();await new Promise(r=>server.close(r));}

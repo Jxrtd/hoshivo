@@ -28,7 +28,7 @@ The ignored .local-providers/anime-sdk checkout comes from https://github.com/he
 
 ## Watching
 
-Hover over the seek bar to see the target timestamp. Hovering does not load video previews or create another decoder. Press Space or K, or click the video surface, to pause/resume; typing and interactive controls retain their normal keyboard behavior.
+Hover over the seek bar to see the target timestamp. Hovering does not load video previews or create another decoder. Press Space or K, or click the video surface on desktop, to pause/resume. On mobile, tapping the video only reveals controls; use the center Pause/Resume button or the bottom-left playback button. Typing and interactive controls retain their normal keyboard behavior.
 
 The player's Video quality menu lists actual stream resolutions, including 4K when provided, plus Auto. Switching native HLS quality preserves the playback position. On iPhone, choose the quality before entering the system fullscreen player. Streams without selectable resolutions show a disabled Auto option.
 
