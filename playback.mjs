@@ -31,7 +31,7 @@ export async function resolveEpisode(anime,episode,refresh=false){
       try{
         const candidate={url:stream.sourceUrl,kind:stream.isHLS?'hls':'mp4',headers:stream.headers};
         await probeMedia(candidate,signal);
-        const source={kind:candidate.kind,url:issueMedia(candidate.url,candidate.headers),skip,subtitles:(stream.subtitles||[]).filter(s=>s.url&&s.format!=='ass'&&s.format!=='srt').map(s=>({...s,url:issueMedia(s.url,candidate.headers)}))};
+        const source={kind:candidate.kind,url:issueMedia(candidate.url,candidate.headers),skip,subtitles:(stream.subtitles||[]).filter(s=>s.url).map(s=>({...s,url:issueMedia(s.url,candidate.headers,true)}))};
         if(cache.size>=300)cache.delete(cache.keys().next().value);cache.set(key,{source,created:Date.now(),expires:Date.now()+120000});return source;
       }catch(e){lastError=e;}
     }

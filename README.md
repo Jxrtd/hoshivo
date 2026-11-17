@@ -28,6 +28,8 @@ The ignored .local-providers/anime-sdk checkout comes from https://github.com/he
 
 ## Watching
 
+The Subtitles menu lists supplied languages with VTT, SRT, or ASS format badges and an Off option. SRT and ASS dialogue are converted to browser-compatible WebVTT; ASS fonts, animations, and drawing effects are not reproduced. Full English tracks are preferred over forced-only captions, and failed provider captions can fall back to another supplied track in the same language. If no usable provider subtitles exist, choose **Load subtitle file…** to select a local VTT/SRT/ASS file (up to 2 MB). Files stay in the browser and are not uploaded. The site does not invent translations or generate speech transcripts. Run `npm run test:captions` to check menu selection, file conversion, keyboard support, and mobile layout.
+
 Hover over the seek bar to see the target timestamp. Hovering does not load video previews or create another decoder. Press Space or K, or click the video surface on desktop, to pause/resume. On mobile, tapping the video only reveals controls; use the center Pause/Resume button or the bottom-left playback button. Typing and interactive controls retain their normal keyboard behavior.
 
 The player's Video quality menu lists actual stream resolutions, including 4K when provided, plus Auto. Switching native HLS quality preserves the playback position. On iPhone, choose the quality before entering the system fullscreen player. Streams without selectable resolutions show a disabled Auto option.

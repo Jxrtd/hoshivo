@@ -2,6 +2,7 @@ import {randomBytes} from 'node:crypto';
 import {lookup} from 'node:dns/promises';
 import {isIP} from 'node:net';
 import {Readable} from 'node:stream';
+import {subtitleVtt} from './public/subtitles.js';
 const tickets=new Map();
 const ticketKeys=new Map();
 const UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/147.0.0.0 Safari/537.36';
@@ -37,14 +38,14 @@ export async function readLimited(response,limit=1024*1024){
   try{while(true){const {done,value}=await reader.read();if(done)break;count+=value.length;if(count>limit)throw new Error('Provider response exceeds the size limit.');chunks.push(Buffer.from(value));}}finally{await reader.cancel().catch(()=>{});}
   return Buffer.concat(chunks);
 }
-export function issueMedia(url,headers={}){
+export function issueMedia(url,headers={},subtitle=false){
   const u=new URL(url);if(u.protocol!=='https:')throw new Error('Media must use HTTPS.');
-  const safeHeaders=mediaHeaders(headers),identity=JSON.stringify([u.href,Object.entries(safeHeaders).sort(([a],[b])=>a.localeCompare(b))]);
+  const safeHeaders=mediaHeaders(headers),identity=JSON.stringify([u.href,Object.entries(safeHeaders).sort(([a],[b])=>a.localeCompare(b)),subtitle]);
   const existing=ticketKeys.get(identity),hit=tickets.get(existing);if(hit&&hit.expires>Date.now()+5*60*1000)return `/api/media/${existing}`;
   function remove(key,value){tickets.delete(key);if(ticketKeys.get(value.identity)===key)ticketKeys.delete(value.identity);}
   for(const [key,value] of tickets)if(value.expires<Date.now())remove(key,value);
   if(tickets.size>=8000){const first=tickets.keys().next().value;remove(first,tickets.get(first));}
-  const token=randomBytes(24).toString('hex');tickets.set(token,{url:u.href,headers:safeHeaders,identity,expires:Date.now()+60*60*1000});ticketKeys.set(identity,token);return `/api/media/${token}`;
+  const token=randomBytes(24).toString('hex');tickets.set(token,{url:u.href,headers:safeHeaders,identity,subtitle,expires:Date.now()+60*60*1000});ticketKeys.set(identity,token);return `/api/media/${token}`;
 }
 export function rewriteManifest(text,base,wrap){
   return text.split(/\r?\n/).map(line=>{
@@ -65,6 +66,7 @@ export async function relayMedia(req,res,token){
     const u=await validateTarget(entry.url);
     const upstream=headers.Range?await fetchPublicRange(u.href,headers,controller.signal):await fetchPublic(u.href,entry.headers,controller.signal);
     if(!upstream.ok){res.writeHead(upstream.status===403?403:502);await upstream.body?.cancel();res.end(`Media provider returned HTTP ${upstream.status}.`);return;}
+    if(entry.subtitle){const text=(await readLimited(upstream,2*1024*1024)).toString('utf8'),body=subtitleVtt(text);res.writeHead(200,{'Content-Type':'text/vtt; charset=utf-8','Cache-Control':'private, max-age=120'});res.end(body);return;}
     let ct=upstream.headers.get('content-type')||'application/octet-stream';
     if(/mpegurl/i.test(ct)||/\.m3u8(?:\?|$)/i.test(upstream.url)){
       const text=(await readLimited(upstream)).toString('utf8');if(!text.trimStart().startsWith('#EXTM3U'))throw new Error('Provider did not return an HLS playlist.');
