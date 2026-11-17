@@ -3,11 +3,11 @@ import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {resolve,extname} from 'node:path';
 import {resolveEpisode} from './playback.mjs';
-import {relayMedia} from './media.mjs';
+import {relayMedia,issueMedia} from './media.mjs';
 import {searchAnime,paradiseSeries,recentAnime,relatedSeasons} from './paradise.mjs';
 import {topAnime,PERIODS} from './rankings.mjs';
 import {manilaDate,validDate,releaseSchedule,animeRelease} from './schedule.mjs';
-import {mangaCatalog,mangaDetails,mangaChapter,mangaId} from './manga.mjs';
+import {mangaCatalog,mangaDetails,mangaChapter,mangaId,mangaCoverPath} from './manga.mjs';
 const root=fileURLToPath(new URL('./public/',import.meta.url));
 const cache=new Map(), pending=new Map();
 let requests=[];
@@ -38,6 +38,8 @@ export const server=http.createServer(async(req,res)=>{
   try{
     const url=new URL(req.url,'http://localhost');
     if(url.pathname.startsWith('/api/manga')){
+      const cover=url.pathname.match(/^\/api\/manga\/cover\/([^/]+)\/([^/]+)$/);
+      if(cover){const token=issueMedia(mangaCoverPath(cover[1],cover[2]),{Referer:'https://mangadex.org/','User-Agent':'Hoshivo/1.1 MangaDex reader'}).split('/').at(-1);return relayMedia(req,res,token);}
       const page=Number(url.searchParams.get('page')||1),lang=url.searchParams.get('lang')||'en';
       if(!Number.isInteger(page)||page<1||page>555||!/^[-a-z]{2,8}$/.test(lang))return json(res,400,{ok:false,error:'Invalid manga page or language.'});
       if(url.pathname==='/api/manga'){

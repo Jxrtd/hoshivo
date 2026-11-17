@@ -1,5 +1,9 @@
 import {issueMedia,validateTarget} from './media.mjs';
 export const mangaId=value=>/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value);
+export function mangaCoverPath(id,file){
+  if(!mangaId(id)||typeof file!=='string'||file.length>180||!/^[a-zA-Z0-9_-]+\.(?:jpe?g|png|webp)(?:\.(?:256|512)\.jpg)?$/i.test(file))throw Object.assign(new Error('Invalid manga cover.'),{status:400});
+  return `https://uploads.mangadex.org/covers/${id}/${file}`;
+}
 const cache=new Map(),pending=new Map();let queue=Promise.resolve();
 async function api(path){
   const hit=cache.get(path);if(hit?.expires>Date.now())return hit.data;if(pending.has(path))return pending.get(path);
@@ -16,7 +20,7 @@ const ratings='contentRating[]=safe&contentRating[]=suggestive';
 export function normalizeManga(row){
   const a=row.attributes||{},cover=row.relationships?.find(r=>r.type==='cover_art')?.attributes?.fileName;
   const title=a.title?.en||a.altTitles?.find(t=>t.en)?.en||Object.values(a.title||{})[0]||'Untitled';
-  return {id:row.id,title,description:a.description?.en||'',poster:cover?`https://uploads.mangadex.org/covers/${row.id}/${encodeURIComponent(cover)}.256.jpg`:'',year:a.year||null,status:a.status||'',kind:a.originalLanguage==='ko'?'Manhwa':a.originalLanguage?.startsWith('zh')?'Manhua':'Manga',languages:(a.availableTranslatedLanguages||[]).filter(l=>typeof l==='string'),tags:(a.tags||[]).map(t=>t.attributes?.name?.en).filter(Boolean)};
+  return {id:row.id,title,description:a.description?.en||'',poster:cover?`/api/manga/cover/${row.id}/${encodeURIComponent(cover)}.256.jpg`:'',year:a.year||null,status:a.status||'',kind:a.originalLanguage==='ko'?'Manhwa':a.originalLanguage?.startsWith('zh')?'Manhua':'Manga',languages:(a.availableTranslatedLanguages||[]).filter(l=>typeof l==='string'),tags:(a.tags||[]).map(t=>t.attributes?.name?.en).filter(Boolean)};
 }
 export async function mangaCatalog({q='',kind='all',page=1}){
   const params=new URLSearchParams({limit:'18',offset:String((page-1)*18),'includes[]':'cover_art','order[followedCount]':'desc',hasAvailableChapters:'true'});
@@ -37,7 +41,7 @@ export async function mangaChapter(id){
   const base=await validateTarget(home.baseUrl);
   const hash=home.chapter?.hash,files=home.chapter?.dataSaver?.length?home.chapter.dataSaver:home.chapter?.data,mode=home.chapter?.dataSaver?.length?'data-saver':'data';
   if(!/^[a-f0-9]+$/i.test(hash||'')||!Array.isArray(files)||!files.length||files.length>500)throw new Error('No readable pages are available for this chapter.');
-  const pages=files.map(file=>{if(typeof file!=='string'||file.length>240||!/^[a-zA-Z0-9_.-]+\.(?:jpe?g|png|webp|gif|avif)$/i.test(file))throw new Error('Invalid chapter image.');return issueMedia(`${base.origin}/${mode}/${hash}/${encodeURIComponent(file)}`,{Referer:'https://mangadex.org/'});});
+  const pages=files.map(file=>{if(typeof file!=='string'||file.length>240||!/^[a-zA-Z0-9_.-]+\.(?:jpe?g|png|webp|gif|avif)$/i.test(file))throw new Error('Invalid chapter image.');return issueMedia(`${base.origin}/${mode}/${hash}/${encodeURIComponent(file)}`,{Referer:'https://mangadex.org/','User-Agent':'Hoshivo/1.1 MangaDex reader'});});
   const chapters=Object.values(aggregate.volumes||{}).flatMap(v=>Object.values(v.chapters||{})).filter(c=>mangaId(c.id||'')).sort((a,b)=>Number(a.chapter)-Number(b.chapter));
   const index=chapters.findIndex(c=>c.id===id||(c.others||[]).includes(id));
   return {manga,id,title:record.attributes.title||'',number:record.attributes.chapter,language,pages,previous:index>0?chapters[index-1].id:null,next:index>=0&&index<chapters.length-1?chapters[index+1].id:null};

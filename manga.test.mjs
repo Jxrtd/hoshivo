@@ -1,6 +1,11 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {mangaId,normalizeManga,mangaChapter} from './manga.mjs';
+import {mangaId,normalizeManga,mangaChapter,mangaCoverPath} from './manga.mjs';
+test('manga covers use a fixed-origin proxy and reject malformed paths',()=>{
+  const id='11111111-1111-1111-1111-111111111111',file='cover-name.jpg.256.jpg';assert.equal(mangaCoverPath(id,file),`https://uploads.mangadex.org/covers/${id}/${file}`);
+  assert.equal(normalizeManga({id,attributes:{},relationships:[{type:'cover_art',attributes:{fileName:'cover-name.jpg'}}]}).poster,`/api/manga/cover/${id}/${file}`);
+  for(const value of ['../secret','https://evil.example/x.jpg','cover%2Fsecret.jpg','file.txt'])assert.throws(()=>mangaCoverPath(id,value),/Invalid manga cover/);
+});
 test('manga metadata recognizes manhwa and English alternative titles',()=>{
   const row=normalizeManga({id:'a',attributes:{title:{'ko-ro':'Korean title'},altTitles:[{en:'English title'}],originalLanguage:'ko',availableTranslatedLanguages:['en','fr']},relationships:[]});
   assert.equal(row.title,'English title');assert.equal(row.kind,'Manhwa');assert.equal(row.poster,'');

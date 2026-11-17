@@ -7,6 +7,8 @@ await new Promise(r=>server.listen(0,'127.0.0.1',r));const base='http://127.0.0.
 try{
   const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(base+'/#manga');await page.locator('#manga-grid .card').first().waitFor({timeout:40000});
+  await page.waitForFunction(()=>{const img=document.querySelector('#manga-grid img');return img?.complete&&img.naturalWidth>0;},null,{timeout:30000});
+  assert.match(await page.locator('#manga-grid img').first().getAttribute('src'),/^\/api\/manga\/cover\//);
   await page.getByRole('searchbox',{name:'Search manga and manhwa'}).fill('The Greatest Estate Developer');await page.locator('#manga-search-form').getByRole('button',{name:'Search',exact:true}).click();
   await page.locator('#manga-grid .card').filter({hasText:'The Greatest Estate Developer'}).first().waitFor({timeout:40000});assert.match(await page.locator('#manga-grid .card').first().textContent(),/Manhwa/);
   await page.getByRole('searchbox',{name:'Search manga and manhwa'}).fill('You Are a Four-Leaf Clover');await page.locator('#manga-search-form').getByRole('button',{name:'Search',exact:true}).click();
@@ -16,8 +18,11 @@ try{
   await page.waitForFunction(()=>{const img=document.querySelector('.reader-pages img');return img?.complete&&img.naturalWidth>0;},null,{timeout:45000});
   assert.match(page.url(),/#read\/[a-f0-9-]{36}$/);assert.ok(await page.locator('.reader-pages img').count()>1);
   assert.ok(await page.evaluate(()=>Object.keys(JSON.parse(localStorage.getItem('hoshivo-reading')||'{}')).length)>0);
+  await page.evaluate(()=>{const rows=JSON.parse(localStorage.getItem('hoshivo-reading'));for(const row of Object.values(rows))row.poster=row.poster.replace('/api/manga/cover/','https://uploads.mangadex.org/covers/');localStorage.setItem('hoshivo-reading',JSON.stringify(rows));});
   mkdirSync('.local-results',{recursive:true});await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:'.local-results/manga-reader-mobile.png'});
   await page.getByRole('link',{name:'Manga & manhwa',exact:true}).click();await page.getByRole('heading',{name:'Continue reading.'}).waitFor();assert.equal(await page.locator('.reading-recent-grid a').count(),1);
+  assert.match(await page.locator('.reading-recent-grid img').getAttribute('src'),/^\/api\/manga\/cover\//);
+  await page.waitForFunction(()=>{const img=document.querySelector('.reading-recent-grid img');return img?.complete&&img.naturalWidth>0;},null,{timeout:30000});
   await page.locator('#manga-grid .card').first().waitFor({timeout:40000});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:'.local-results/manga-catalog-mobile.png'});
   await page.getByRole('link',{name:'Browse anime',exact:true}).click();assert.equal(await page.locator('#manga-section').isVisible(),false);assert.equal(await page.locator('#catalog').isVisible(),true);assert.deepEqual(errors,[]);
   console.log('Passed: real manga and manhwa search, chapter list, readable chapter images, saved reading history, mobile layout, and anime navigation.');
