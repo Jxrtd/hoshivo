@@ -23,6 +23,11 @@ try{
   await page.locator('.video-seek-tooltip').waitFor();assert.match(await page.locator('.timeline-preview-time').textContent(),/0:0[12]/);assert.equal(await page.locator('.timeline-preview').count(),0);assert.equal(requests,0);
   assert.equal(await page.evaluate(()=>window.position),12);assert.equal(await page.evaluate(()=>window.paused),false);
   await page.mouse.move(5,5);assert.equal(await page.locator('.video-seek-tooltip').isVisible(),false);
+  await page.getByRole('button',{name:'Forward 10 seconds',exact:true}).click();assert.equal(await page.evaluate(()=>window.position),22);
+  await page.getByRole('button',{name:'Rewind 10 seconds',exact:true}).click();assert.equal(await page.evaluate(()=>window.position),12);
+  await page.evaluate(()=>window.position=3);await page.getByRole('button',{name:'Rewind 10 seconds',exact:true}).click();assert.equal(await page.evaluate(()=>window.position),0);
+  await page.evaluate(()=>window.position=96);await page.getByRole('button',{name:'Forward 10 seconds',exact:true}).click();assert.equal(await page.evaluate(()=>window.position),100);
+  for(const width of [320,390]){await page.setViewportSize({width,height:700});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);assert.equal(await page.getByRole('button',{name:'Forward 10 seconds',exact:true}).isVisible(),true);}
   await page.evaluate(()=>window.removeTestControls());await page.locator('input').evaluate(input=>input.blur());await page.keyboard.press('Space');assert.equal(await page.evaluate(()=>window.paused),false);
   console.log('Passed: timestamp-only hover without video requests, main playback unchanged, Space and surface click toggles, input exclusion, and cleanup.');
 }finally{await browser.close();await new Promise(r=>server.close(r));}

@@ -2,6 +2,8 @@ import {timelineSegments} from './skip.js';
 const stamp=value=>{const seconds=Math.max(0,Math.floor(Number.isFinite(value)?value:0));return `${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;};
 const icons={play:'<path d="m9 5 11 7-11 7Z" fill="currentColor" stroke="none"/>',pause:'<path d="M8 5v14M16 5v14" stroke-width="4"/>',volume:'<path d="m11 5-6 4H2v6h3l6 4Z"/><path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/>',muted:'<path d="m11 5-6 4H2v6h3l6 4Z"/><path d="m16 9 6 6m0-6-6 6"/>',expand:'<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>',collapse:'<path d="M3 8h5V3m8 0v5h5M8 21v-5H3m18 0h-5v5"/>'};
 const icon=name=>`<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${icons[name]}</svg>`;
+icons.rewind='<path d="M4 8a9 9 0 1 1-1 8M4 3v5h5"/><text x="12" y="16" text-anchor="middle" fill="currentColor" stroke="none" font-size="9" font-family="sans-serif" font-weight="700">10</text>';
+icons.forward='<path d="M20 8a9 9 0 1 0 1 8m-1-13v5h-5"/><text x="12" y="16" text-anchor="middle" fill="currentColor" stroke="none" font-size="9" font-family="sans-serif" font-weight="700">10</text>';
 export function attachVideoControls(player,video,segments,onSeek,onPlayError,qualityApi){
   video.controls=false;player.classList.add('has-custom-controls');
   const controls=document.createElement('div');controls.className='video-controls';controls.setAttribute('role','group');controls.setAttribute('aria-label','Video playback controls');
@@ -15,6 +17,9 @@ export function attachVideoControls(player,video,segments,onSeek,onPlayError,qua
   const row=document.createElement('div');row.className='video-controls-row';
   function button(label,text,action){const node=document.createElement('button');node.type='button';node.className='video-control-button';node.setAttribute('aria-label',label);node.title=label;node.innerHTML=icon(label==='Play'?'play':label==='Mute'?'volume':'expand');node.onclick=action;row.append(node);return node;}
   const play=button('Play','▶',async()=>{if(!video.paused){video.pause();return;}try{await video.play();}catch(e){if(e.name!=='AbortError')onPlayError(e.message);}});
+  function jump(seconds){if(!Number.isFinite(video.duration)||video.duration<=0)return;onSeek(Math.max(0,Math.min(video.duration,video.currentTime+seconds)));update();}
+  const rewind=button('Rewind 10 seconds','',()=>jump(-10));rewind.classList.add('video-rewind');rewind.innerHTML=icon('rewind');
+  const forward=button('Forward 10 seconds','',()=>jump(10));forward.classList.add('video-forward');forward.innerHTML=icon('forward');
   const time=document.createElement('span');time.className='video-time';row.append(time);
   const legend=document.createElement('span');legend.className='video-chapter-legend';row.append(legend);
   const mute=button('Mute','🔊',()=>{if(video.muted||video.volume===0){video.muted=false;if(video.volume===0)video.volume=1;}else video.muted=true;});
@@ -123,6 +128,7 @@ export function attachVideoControls(player,video,segments,onSeek,onPlayError,qua
   video.addEventListener('play',showControls);video.addEventListener('pause',showControls);video.addEventListener('ended',showControls);
   let duration=NaN,ranges=[];
   function update(){
+    rewind.disabled=forward.disabled=!Number.isFinite(video.duration)||video.duration<=0;
     if(duration!==video.duration){
       duration=video.duration;ranges=timelineSegments(segments,duration);track.replaceChildren();legend.replaceChildren();
       for(const range of ranges){const area=document.createElement('span');area.className='video-seek-chapter '+range.kind;area.style.left=range.left+'%';area.style.width=range.width+'%';area.title=(range.kind==='intro'?'Intro':'Outro')+' '+stamp(range.start)+'–'+stamp(range.end);track.append(area);const label=document.createElement('span');label.className=range.kind;label.textContent=range.kind==='intro'?'Intro':'Outro';label.title=area.title;legend.append(label);}

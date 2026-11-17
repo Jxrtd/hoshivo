@@ -40,15 +40,17 @@ body.player-fullscreen-open{overflow:hidden}
 .video-controls .video-seek::-moz-range-thumb{width:12px;height:12px;background:var(--accent)}
 @media(max-width:700px){
   .player>.video-controls{padding:18px 10px 10px}
-  .video-controls .video-controls-row{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:7px}
-  .video-controls .video-control-button{width:34px;height:34px;border-radius:9px}
+  .video-controls .video-controls-row{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:7px}
+  .video-controls .video-control-button{width:min(34px,100%);height:34px;border-radius:9px}
   .video-controls .video-control-button:first-child{grid-column:1;grid-row:1}
-  .video-controls .video-time{grid-column:2 / span 3;grid-row:1;font-size:10px;margin:0}
-  .video-controls .video-control-button:is([aria-label="Mute"],[aria-label="Unmute"]){grid-column:5;grid-row:1;justify-self:end}
-  .video-controls .video-control-button:is([aria-label="Enter fullscreen"],[aria-label="Exit fullscreen"]){grid-column:6;grid-row:1;justify-self:end}
-  .video-controls .video-captions{grid-column:1 / span 3;grid-row:2}
-  .video-controls .video-quality{grid-column:4 / span 2;grid-row:2}
-  .video-controls .video-speed{grid-column:6;grid-row:2}
+  .video-controls .video-rewind{grid-column:2;grid-row:1}
+  .video-controls .video-forward{grid-column:3;grid-row:1}
+  .video-controls .video-time{grid-column:4 / span 3;grid-row:1;font-size:10px;margin:0}
+  .video-controls .video-control-button:is([aria-label="Mute"],[aria-label="Unmute"]){grid-column:7;grid-row:1;justify-self:end}
+  .video-controls .video-control-button:is([aria-label="Enter fullscreen"],[aria-label="Exit fullscreen"]){grid-column:8;grid-row:1;justify-self:end}
+  .video-controls .video-captions{grid-column:1 / span 4;grid-row:2}
+  .video-controls .video-quality{grid-column:5 / span 2;grid-row:2}
+  .video-controls .video-speed{grid-column:7 / span 2;grid-row:2}
   .video-controls select{width:100%;max-width:none!important;height:30px;font-size:10px;padding:4px 6px}
 }
 #player>video:focus{outline:none}
