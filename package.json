@@ -19,6 +19,7 @@
     "test:quality-seasons": "node scripts/quality-seasons-smoke.mjs",
     "test:preview": "node scripts/preview-playback-smoke.mjs",
     "test:manga": "node scripts/manga-smoke.mjs",
+    "test:library": "node scripts/library-sources-smoke.mjs",
     "test:captions": "node scripts/captions-smoke.mjs",
     "test:idle": "node scripts/idle-smoke.mjs",
     "test:subtitles": "node scripts/subtitle-position-smoke.mjs",

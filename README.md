@@ -4,7 +4,11 @@ Anime browsing with AnimeParadise playback, a watchlist, and Recently watched.
 
 ## Manga and manhwa
 
-Open **Manga & manhwa** in the navigation to browse or search MangaDex, filter Japanese manga/Korean manhwa/Chinese manhua, select a chapter language, and read chapters in a vertical reader. Previous/next chapter navigation, lazy-loaded data-saver page images, page retries, and browser-local Continue reading history are included. The catalog uses safe and suggestive content ratings. Availability depends on MangaDex; no source contains every series or translation.
+The manga workspace has **Library**, **Browse**, and **Sources** tabs inspired by Tachimanga's organization. Sources includes MangaDex, MangaPill, and Weeb Central web adapters; enable or disable them there, then select one in Browse. Native APK/JAR extensions and arbitrary extension repositories are not executed by the web app. Additional adapters must be implemented on the server. Source availability can differ locally and on Render.
+
+Save titles from cards, title pages, or the reader and choose one or more library categories. Create categories when saving, or use **Manage categories** to create, rename, and delete them. Editing a saved title changes its category memberships. Deleting categories retains the titles in Uncategorized if no memberships remain. Library entries, categories, and enabled-source preferences are stored in `hoshivo-manga-library` in this browser; reading progress remains separate. This is local browser storage, not account synchronization. Run `npm run test:library` for source reading and category lifecycle checks.
+
+Open **Manga & manhwa** in the navigation to browse or search, select a chapter language where provided, and read chapters in a vertical reader. MangaDex supports Japanese manga/Korean manhwa/Chinese manhua filters and uses safe and suggestive content ratings. MangaPill and Weeb Central currently expose their English catalogs. Previous/next chapter navigation, lazy-loaded page images, page retries, and browser-local Continue reading history are included. Availability varies by source; no source contains every series or translation.
 
 Source research started with [Wotaku's extension directory](https://wotaku.wiki/ext/mihon) and its [Keiyoushi link](https://keiyoushi.github.io/). Those extensions target native reader apps; Hoshivo integrates MangaDex's public API directly rather than installing Android extensions into the web server. Requests are paced, cached, and validated; chapter images use the existing private media relay.
 

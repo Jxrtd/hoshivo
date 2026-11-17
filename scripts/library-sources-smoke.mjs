@@ -1,0 +1,32 @@
+import assert from 'node:assert/strict';
+import {existsSync,mkdirSync} from 'node:fs';
+import {chromium} from 'playwright';
+import {server} from '../server.mjs';
+const executablePath=process.env.BROWSER_PATH||['C:/Program Files/Google/Chrome/Application/chrome.exe','C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'].find(existsSync);
+await new Promise(r=>server.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+server.address().port,browser=await chromium.launch({executablePath,headless:true});
+try{
+  const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+  const tabs=()=>page.getByRole('navigation',{name:'Manga workspace'});
+  await page.goto(base+'/#manga/sources');await page.locator('.source-card').nth(2).waitFor();
+  await page.getByRole('button',{name:'Disable MangaPill',exact:true}).click();await page.getByRole('button',{name:'Add MangaPill',exact:true}).click();await page.getByRole('button',{name:'Disable MangaPill',exact:true}).waitFor();
+  await page.locator('.source-card[data-source="weebcentral"]').getByRole('link',{name:'Browse',exact:true}).click();
+  await page.getByRole('searchbox',{name:'Search manga and manhwa'}).fill('Solo Leveling');await page.locator('#manga-search-form').getByRole('button',{name:'Search',exact:true}).click();
+  const save=page.getByRole('button',{name:'Save Solo Leveling to library',exact:true});await save.waitFor({timeout:45000});await save.click();
+  const dialog=page.getByRole('dialog');await dialog.getByRole('textbox',{name:'New category name'}).fill('Manhwa favorites');await dialog.getByRole('button',{name:'Create category',exact:true}).click();
+  await dialog.getByRole('checkbox',{name:'Reading',exact:true}).check();await dialog.getByRole('button',{name:'Save',exact:true}).click();
+  await tabs().getByRole('link',{name:/Library/}).click();await page.getByRole('button',{name:'Manhwa favorites 1',exact:true}).click();assert.equal(await page.locator('#library-grid .library-card').count(),1);
+  await page.getByRole('button',{name:'Edit categories for Solo Leveling',exact:true}).click();await dialog.getByRole('checkbox',{name:'Manhwa favorites',exact:true}).uncheck();await dialog.getByRole('checkbox',{name:'Reading',exact:true}).uncheck();await dialog.getByRole('checkbox',{name:'Completed',exact:true}).check();await dialog.getByRole('button',{name:'Save',exact:true}).click();
+  await page.getByRole('button',{name:'Completed 1',exact:true}).click();assert.equal(await page.locator('#library-grid .library-card').count(),1);
+  await page.getByRole('button',{name:'Manage categories',exact:true}).click();
+  const rename=dialog.getByRole('textbox',{name:'Rename Manhwa favorites',exact:true});await rename.fill('Favorites');await rename.locator('..').getByRole('button',{name:'Rename',exact:true}).click();
+  await dialog.getByRole('textbox',{name:'Rename Completed',exact:true}).locator('..').getByRole('button',{name:'Delete',exact:true}).click();await dialog.getByRole('button',{name:'Done',exact:true}).click();
+  await page.getByRole('button',{name:'Uncategorized 1',exact:true}).click();assert.equal(await page.locator('#library-grid .library-card').count(),1);
+  await page.reload();await page.locator('#library-grid .library-card').waitFor();await page.locator('#library-grid .card').click();await page.getByRole('link',{name:'Start reading',exact:true}).waitFor({timeout:45000});await page.getByRole('link',{name:'Start reading',exact:true}).click();
+  await page.waitForFunction(()=>{const img=document.querySelector('.reader-pages img');return img?.complete&&img.naturalWidth>0;},null,{timeout:45000});assert.match(page.url(),/#read\/wc-/);
+  await tabs().getByRole('link',{name:'Sources',exact:true}).click();await page.locator('.source-card[data-source="mangapill"]').getByRole('link',{name:'Browse',exact:true}).click();
+  await page.getByRole('searchbox',{name:'Search manga and manhwa'}).fill('Solo Glitch Player');await page.locator('#manga-search-form').getByRole('button',{name:'Search',exact:true}).click();
+  const card=page.locator('#manga-grid .card').filter({hasText:'Solo Glitch Player'}).first();await card.waitFor({timeout:45000});await card.click();await page.getByRole('link',{name:'Start reading',exact:true}).waitFor({timeout:45000});await page.getByRole('link',{name:'Start reading',exact:true}).click();
+  await page.waitForFunction(()=>{const img=document.querySelector('.reader-pages img');return img?.complete&&img.naturalWidth>0;},null,{timeout:45000});assert.match(page.url(),/#read\/mp-/);
+  await page.setViewportSize({width:390,height:844});await tabs().getByRole('link',{name:/Library/}).click();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);mkdirSync('.local-results',{recursive:true});await page.screenshot({path:'.local-results/library-mobile.png'});assert.deepEqual(errors,[]);
+  console.log('Passed: source enable/disable, Weeb Central and MangaPill reading, save to multiple categories, move/rename/delete categories without losing titles, refresh persistence, and mobile layout.');
+}finally{await browser.close();await new Promise(r=>server.close(r));}

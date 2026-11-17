@@ -8,6 +8,7 @@ import {searchAnime,paradiseSeries,recentAnime,relatedSeasons} from './paradise.
 import {topAnime,PERIODS} from './rankings.mjs';
 import {manilaDate,validDate,releaseSchedule,animeRelease} from './schedule.mjs';
 import {mangaCatalog,mangaDetails,mangaChapter,mangaId,mangaCoverPath} from './manga.mjs';
+import {mangaSources,externalMangaId,sourceCatalog,sourceDetails,sourceChapter,sourceCover} from './manga-sources.mjs';
 const root=fileURLToPath(new URL('./public/',import.meta.url));
 const cache=new Map(), pending=new Map();
 let requests=[];
@@ -38,17 +39,22 @@ export const server=http.createServer(async(req,res)=>{
   try{
     const url=new URL(req.url,'http://localhost');
     if(url.pathname.startsWith('/api/manga')){
+      if(url.pathname==='/api/manga/sources')return json(res,200,{ok:true,data:mangaSources});
+      const sourceImage=url.pathname.match(/^\/api\/manga\/source-cover\/([^/]+)$/);
+      if(sourceImage){if(!externalMangaId(sourceImage[1]))return json(res,400,{ok:false,error:'Invalid source cover.'});return relayMedia(req,res,(await sourceCover(sourceImage[1])).split('/').at(-1));}
       const cover=url.pathname.match(/^\/api\/manga\/cover\/([^/]+)\/([^/]+)$/);
       if(cover){const token=issueMedia(mangaCoverPath(cover[1],cover[2]),{Referer:'https://mangadex.org/','User-Agent':'Hoshivo/1.1 MangaDex reader'}).split('/').at(-1);return relayMedia(req,res,token);}
       const page=Number(url.searchParams.get('page')||1),lang=url.searchParams.get('lang')||'en';
       if(!Number.isInteger(page)||page<1||page>555||!/^[-a-z]{2,8}$/.test(lang))return json(res,400,{ok:false,error:'Invalid manga page or language.'});
       if(url.pathname==='/api/manga'){
-        const q=(url.searchParams.get('q')||'').trim(),kind=url.searchParams.get('kind')||'all';
-        if(q.length>100||!['all','manga','manhwa','manhua'].includes(kind))return json(res,400,{ok:false,error:'Invalid manga search or category.'});
+        const q=(url.searchParams.get('q')||'').trim(),kind=url.searchParams.get('kind')||'all',source=url.searchParams.get('source')||'mangadex';
+        if(q.length>100||!['all','manga','manhwa','manhua'].includes(kind)||!mangaSources.some(s=>s.id===source))return json(res,400,{ok:false,error:'Invalid manga search, source, or category.'});
+        if(source!=='mangadex')return json(res,200,{ok:true,data:await sourceCatalog(source,q,page)});
         return json(res,200,{ok:true,data:await mangaCatalog({q,kind,page})});
       }
       const chapter=url.pathname.match(/^\/api\/manga\/chapter\/([^/]+)$/),series=url.pathname.match(/^\/api\/manga\/([^/]+)$/),id=chapter?.[1]||series?.[1];
-      if(page>100||!id||!mangaId(id))return json(res,400,{ok:false,error:'Invalid manga or chapter ID.'});
+      if(page>100||!id||(!mangaId(id)&&!externalMangaId(id)))return json(res,400,{ok:false,error:'Invalid manga or chapter ID.'});
+      if(externalMangaId(id))return json(res,200,{ok:true,data:chapter?await sourceChapter(id):await sourceDetails(id)});
       return json(res,200,{ok:true,data:chapter?await mangaChapter(id):await mangaDetails(id,lang,page)});
     }
     if(url.pathname==='/healthz'){
@@ -102,7 +108,7 @@ export const server=http.createServer(async(req,res)=>{
     if(url.pathname==='/vendor/hls.min.js'){
       const content=await readFile(new URL('./node_modules/hls.js/dist/hls.min.js',import.meta.url));res.writeHead(200,{'Content-Type':'text/javascript; charset=utf-8','Cache-Control':'public, max-age=86400'});res.end(content);return;
     }
-    const files={'/':'index.html','/index.html':'index.html','/app.js':'app.js','/dashboard.js':'dashboard.js','/schedule.js':'schedule.js','/player.js':'player.js','/video-controls.js':'video-controls.js','/skip.js':'skip.js','/style.css':'style.css','/quality.js':'quality.js','/adaptive.js':'adaptive.js','/favicon.svg':'favicon.svg','/manga.js':'manga.js','/captions.js':'captions.js','/subtitles.js':'subtitles.js'};
+    const files={'/':'index.html','/index.html':'index.html','/app.js':'app.js','/dashboard.js':'dashboard.js','/schedule.js':'schedule.js','/player.js':'player.js','/video-controls.js':'video-controls.js','/skip.js':'skip.js','/style.css':'style.css','/quality.js':'quality.js','/adaptive.js':'adaptive.js','/favicon.svg':'favicon.svg','/manga.js':'manga.js','/captions.js':'captions.js','/subtitles.js':'subtitles.js','/library.js':'library.js'};
     const file=files[url.pathname];
     if(!file){res.writeHead(404);res.end('Not found');return;}
     const content=await readFile(resolve(root,file));

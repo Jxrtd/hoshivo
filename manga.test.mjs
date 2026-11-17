@@ -1,6 +1,13 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {mangaId,normalizeManga,mangaChapter,mangaCoverPath} from './manga.mjs';
+import {sourceId,sourcePath,externalMangaId} from './manga-sources.mjs';
+test('additional source IDs are canonical and cannot point at arbitrary URLs',()=>{
+  const id=sourceId('mp','/manga/6372/solo-glitch-player');assert.equal(sourcePath(id).path,'/manga/6372');assert.equal(sourcePath(id).origin,'https://mangapill.com');assert.equal(id,sourceId('mp','/manga/6372'));
+  assert.equal(externalMangaId(id),true);assert.equal(externalMangaId('https://example.com'),false);
+  for(const path of ['/../admin','https://127.0.0.1/private','/manga/1?url=https://example.com','/chapters/1/../../private'])assert.throws(()=>sourceId('mp',path),/Invalid source/);
+  assert.throws(()=>sourcePath('mp-'+Buffer.from('https://example.com/').toString('base64url')),/Invalid source/);
+});
 test('manga covers use a fixed-origin proxy and reject malformed paths',()=>{
   const id='11111111-1111-1111-1111-111111111111',file='cover-name.jpg.256.jpg';assert.equal(mangaCoverPath(id,file),`https://uploads.mangadex.org/covers/${id}/${file}`);
   assert.equal(normalizeManga({id,attributes:{},relationships:[{type:'cover_art',attributes:{fileName:'cover-name.jpg'}}]}).poster,`/api/manga/cover/${id}/${file}`);
