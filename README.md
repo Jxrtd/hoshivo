@@ -2,6 +2,14 @@
 
 Anime browsing with AnimeParadise playback, a watchlist, and Recently watched.
 
+## Manga and manhwa
+
+Open **Manga & manhwa** in the navigation to browse or search MangaDex, filter Japanese manga/Korean manhwa/Chinese manhua, select a chapter language, and read chapters in a vertical reader. Previous/next chapter navigation, lazy-loaded data-saver page images, page retries, and browser-local Continue reading history are included. The catalog uses safe and suggestive content ratings. Availability depends on MangaDex; no source contains every series or translation.
+
+Source research started with [Wotaku's extension directory](https://wotaku.wiki/ext/mihon) and its [Keiyoushi link](https://keiyoushi.github.io/). Those extensions target native reader apps; Hoshivo integrates MangaDex's public API directly rather than installing Android extensions into the web server. Requests are paced, cached, and validated; chapter images use the existing private media relay.
+
+Run `npm run test:manga` for the live browser check of manga/manhwa search, readable chapter images, saved history, mobile layout, and navigation back to anime.
+
 The homepage latest-episodes feed comes directly from AnimeParadise and opens provider-native titles. Rankings and schedules can use other catalogs; playback matches those entries using catalog IDs and alternate titles while checking release years to avoid selecting a sequel.
 
 ## Run

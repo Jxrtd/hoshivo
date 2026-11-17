@@ -7,6 +7,7 @@ import {relayMedia} from './media.mjs';
 import {searchAnime,paradiseSeries,recentAnime,relatedSeasons} from './paradise.mjs';
 import {topAnime,PERIODS} from './rankings.mjs';
 import {manilaDate,validDate,releaseSchedule,animeRelease} from './schedule.mjs';
+import {mangaCatalog,mangaDetails,mangaChapter,mangaId} from './manga.mjs';
 const root=fileURLToPath(new URL('./public/',import.meta.url));
 const cache=new Map(), pending=new Map();
 let requests=[];
@@ -36,6 +37,18 @@ export const server=http.createServer(async(req,res)=>{
   if(req.method!=='GET'){res.writeHead(405,{'Allow':'GET'});res.end();return;}
   try{
     const url=new URL(req.url,'http://localhost');
+    if(url.pathname.startsWith('/api/manga')){
+      const page=Number(url.searchParams.get('page')||1),lang=url.searchParams.get('lang')||'en';
+      if(!Number.isInteger(page)||page<1||page>555||!/^[-a-z]{2,8}$/.test(lang))return json(res,400,{ok:false,error:'Invalid manga page or language.'});
+      if(url.pathname==='/api/manga'){
+        const q=(url.searchParams.get('q')||'').trim(),kind=url.searchParams.get('kind')||'all';
+        if(q.length>100||!['all','manga','manhwa','manhua'].includes(kind))return json(res,400,{ok:false,error:'Invalid manga search or category.'});
+        return json(res,200,{ok:true,data:await mangaCatalog({q,kind,page})});
+      }
+      const chapter=url.pathname.match(/^\/api\/manga\/chapter\/([^/]+)$/),series=url.pathname.match(/^\/api\/manga\/([^/]+)$/),id=chapter?.[1]||series?.[1];
+      if(page>100||!id||!mangaId(id))return json(res,400,{ok:false,error:'Invalid manga or chapter ID.'});
+      return json(res,200,{ok:true,data:chapter?await mangaChapter(id):await mangaDetails(id,lang,page)});
+    }
     if(url.pathname==='/healthz'){
       try{
         const upstream=await fetch('http://127.0.0.1:3031/health',{signal:AbortSignal.timeout(2000)});
@@ -87,7 +100,7 @@ export const server=http.createServer(async(req,res)=>{
     if(url.pathname==='/vendor/hls.min.js'){
       const content=await readFile(new URL('./node_modules/hls.js/dist/hls.min.js',import.meta.url));res.writeHead(200,{'Content-Type':'text/javascript; charset=utf-8','Cache-Control':'public, max-age=86400'});res.end(content);return;
     }
-    const files={'/':'index.html','/index.html':'index.html','/app.js':'app.js','/dashboard.js':'dashboard.js','/schedule.js':'schedule.js','/player.js':'player.js','/video-controls.js':'video-controls.js','/skip.js':'skip.js','/style.css':'style.css','/quality.js':'quality.js','/adaptive.js':'adaptive.js','/favicon.svg':'favicon.svg'};
+    const files={'/':'index.html','/index.html':'index.html','/app.js':'app.js','/dashboard.js':'dashboard.js','/schedule.js':'schedule.js','/player.js':'player.js','/video-controls.js':'video-controls.js','/skip.js':'skip.js','/style.css':'style.css','/quality.js':'quality.js','/adaptive.js':'adaptive.js','/favicon.svg':'favicon.svg','/manga.js':'manga.js'};
     const file=files[url.pathname];
     if(!file){res.writeHead(404);res.end('Not found');return;}
     const content=await readFile(resolve(root,file));
