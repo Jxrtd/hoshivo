@@ -8,7 +8,7 @@ import {searchAnime,paradiseSeries,recentAnime,relatedSeasons} from './paradise.
 import {topAnime,PERIODS} from './rankings.mjs';
 import {manilaDate,validDate,releaseSchedule,animeRelease} from './schedule.mjs';
 import {mangaCatalog,mangaDetails,mangaChapter,mangaId,mangaCoverPath} from './manga.mjs';
-import {mangaSources,externalMangaId,sourceCatalog,sourceDetails,sourceChapter,sourceCover} from './manga-sources.mjs';
+import {mangaSources,sourceRegistry,externalMangaId,sourceCatalog,sourceDetails,sourceChapter,sourceCover} from './manga-sources.mjs';
 const root=fileURLToPath(new URL('./public/',import.meta.url));
 const cache=new Map(), pending=new Map();
 let requests=[];
@@ -39,7 +39,7 @@ export const server=http.createServer(async(req,res)=>{
   try{
     const url=new URL(req.url,'http://localhost');
     if(url.pathname.startsWith('/api/manga')){
-      if(url.pathname==='/api/manga/sources')return json(res,200,{ok:true,data:mangaSources});
+      if(url.pathname==='/api/manga/sources')return json(res,200,{ok:true,data:await sourceRegistry(url.searchParams.get('check')==='1')});
       const sourceImage=url.pathname.match(/^\/api\/manga\/source-cover\/([^/]+)$/);
       if(sourceImage){if(!externalMangaId(sourceImage[1]))return json(res,400,{ok:false,error:'Invalid source cover.'});return relayMedia(req,res,(await sourceCover(sourceImage[1])).split('/').at(-1));}
       const cover=url.pathname.match(/^\/api\/manga\/cover\/([^/]+)\/([^/]+)$/);

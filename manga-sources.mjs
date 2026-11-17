@@ -2,6 +2,14 @@ import {parseHTML} from 'linkedom';
 import {issueMedia,fetchPublic,readLimited} from './media.mjs';
 export const mangaSources=[{id:'mangadex',name:'MangaDex',language:'Multilingual',website:'https://mangadex.org',description:'Manga, manhwa and manhua with chapter language selection.'},{id:'mangapill',name:'MangaPill',language:'English',website:'https://mangapill.com',description:'Search and read its English manga catalog.'},{id:'weebcentral',name:'Weeb Central',language:'English',website:'https://weebcentral.com',description:'Browse English manga and manhwa chapters.'}];
 const origins={mp:'https://mangapill.com',wc:'https://weebcentral.com'},names={mp:'mangapill',wc:'weebcentral'},cache=new Map(),pending=new Map(),covers=new Map();
+const availability=new Map();
+export async function sourceRegistry(check=false){
+  const previous=availability.get('weebcentral');
+  if(check&&(!previous||Date.now()-previous.at>180000)){
+    try{const response=await fetchPublic('https://weebcentral.com/search/data?text=solo&limit=1',{'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',Referer:'https://weebcentral.com/'},AbortSignal.timeout(5000));await response.body?.cancel();availability.set('weebcentral',{at:Date.now(),available:response.ok,message:response.ok?'':'The source rejected this server (HTTP '+response.status+').'});}catch{availability.set('weebcentral',{at:Date.now(),available:false,message:'The source could not be reached from this server.'});}
+  }
+  return mangaSources.map(source=>({...source,...(availability.get(source.id)||{})}));
+}
 const patterns={mp:/^\/(?:manga\/\d+(?:\/[a-zA-Z0-9-]+)?|chapters\/[\d-]+(?:\/[a-zA-Z0-9-]+)?)$/,wc:/^\/(?:series\/[A-Z0-9]{26}(?:\/[a-zA-Z0-9-]+)?|chapters\/[A-Z0-9]{26})$/};
 export function sourceId(prefix,path){if(!patterns[prefix]?.test(path))throw Object.assign(new Error('Invalid source content path.'),{status:400});return prefix+'-'+Buffer.from(path.split('/').slice(0,3).join('/')).toString('base64url');}
 export function sourcePath(id){const prefix=id.slice(0,2),encoded=id.slice(3),path=Buffer.from(encoded,'base64url').toString();if(id[2]!=='-'||encoded.length>400||Buffer.from(path).toString('base64url')!==encoded||!patterns[prefix]?.test(path))throw Object.assign(new Error('Invalid source title or chapter.'),{status:400});return {prefix,path,origin:origins[prefix]};}
