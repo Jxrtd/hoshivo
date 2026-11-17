@@ -8,7 +8,8 @@ const browser=await chromium.launch({executablePath,headless:true});
 try{
   const page=await browser.newPage({viewport:{width:390,height:844},hasTouch:true,isMobile:true});
   await page.route('**/fixture',route=>route.fulfill({contentType:'text/html',body:'<meta name="viewport" content="width=device-width"><link rel="stylesheet" href="/style.css"><div class="watch-layout"><aside class="episode-panel">Episodes</aside><div class="playback-column"><div class="playback-toolbar"><p id="playback-status"></p><button id="reload-source">Reload video</button></div><div class="player" id="player"></div><div class="player-controls">Episode navigation</div><p class="player-note">Notes</p><section id="anime-schedule">Schedule</section></div></div>'}));
-  await page.route('**/api/playback?*',route=>route.fulfill({json:{ok:true,data:{kind:'mp4',url:'/api/media/'+'a'.repeat(48),skip:{intro:{start:10,end:20}},subtitles:[]}}}));
+  await page.route('**/api/playback?*',route=>route.fulfill({json:{ok:true,data:{kind:'mp4',url:'/api/media/'+'a'.repeat(48),skip:{intro:{start:10,end:20}},subtitles:[{url:'/api/media/'+'b'.repeat(48),label:'English',language:'en'}]}}}));
+  await page.route('**/api/media/*',route=>route.fulfill({contentType:'text/vtt',body:'WEBVTT\n\n'}));
   await page.goto(`http://127.0.0.1:${server.address().port}/fixture`);
   await page.clock.install();
   await page.evaluate(async()=>{
@@ -23,6 +24,11 @@ try{
   await page.locator('#auto-skip-intro').uncheck();
   await page.getByRole('button',{name:'Skip intro',exact:true}).click();
   assert.equal(await page.locator('video').evaluate(v=>v.currentTime),20);
+  await page.locator('track').evaluate(t=>{t.track.mode='showing';t.dispatchEvent(new Event('error'));});
+  assert.equal(await page.locator('.subtitle-notice').isVisible(),true);await page.getByRole('button',{name:'Retry subtitles'}).click();
+  assert.match(await page.locator('track').getAttribute('src'),/\?retry=/);assert.equal(await page.locator('video').evaluate(v=>v.currentTime),20);
+  await page.locator('track').dispatchEvent('load');assert.equal(await page.locator('.subtitle-notice').isVisible(),false);
+  await page.locator('video').focus();
   assert.equal(await page.locator('video').evaluate(v=>document.activeElement===v&&getComputedStyle(v).outlineStyle==='none'),true);
   await page.locator('video').dispatchEvent('pause');
   const resume=page.getByRole('button',{name:'Resume episode',exact:true});assert.equal(await resume.textContent(),'▶');assert.equal(await resume.evaluate(b=>b.clientWidth===b.clientHeight),true);

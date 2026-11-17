@@ -28,7 +28,14 @@ export async function setEpisode({anime,episode,resumeAt=0,onProgress}){
   $('#player').replaceChildren();
   const video=document.createElement('video');video.controls=true;video.playsInline=true;video.preload='auto';video.crossOrigin='anonymous';
   const poster=String(anime.background_image||anime.poster||'');if(poster.startsWith('https://'))video.poster=poster;
-  for(const sub of source.subtitles||[]){if(!/^\/api\/media\/[a-f0-9]{48}$/.test(sub.url))continue;const track=document.createElement('track');track.kind='subtitles';track.label=sub.label||sub.language||'Subtitles';track.srclang=/^[a-z]{2,3}(-[a-zA-Z]+)?$/.test(sub.language)?sub.language:'en';track.src=sub.url;track.default=/^en(g)?$/i.test(sub.language||'');video.append(track);}
+  const subtitleNotice=document.createElement('div');subtitleNotice.className='subtitle-notice';subtitleNotice.hidden=true;subtitleNotice.setAttribute('role','status');
+  const subtitleMessage=document.createElement('span'),retrySubtitles=document.createElement('button');retrySubtitles.type='button';retrySubtitles.className='button';retrySubtitles.textContent='Retry subtitles';subtitleNotice.append(subtitleMessage,retrySubtitles);
+  let failedSubtitle=null;
+  video.textTracks.addEventListener('change',()=>{if(failedSubtitle&&failedSubtitle.track.mode!=='showing')subtitleNotice.hidden=true;},{signal:s.abort.signal});
+  retrySubtitles.onclick=()=>{if(session!==s||!failedSubtitle)return;subtitleMessage.textContent='Retrying subtitles…';retrySubtitles.disabled=true;failedSubtitle.src=failedSubtitle.dataset.source+'?retry='+Date.now();failedSubtitle.track.mode='showing';};
+  for(const sub of source.subtitles||[]){if(!/^\/api\/media\/[a-f0-9]{48}$/.test(sub.url))continue;const track=document.createElement('track');track.kind='subtitles';track.label=sub.label||sub.language||'Subtitles';track.srclang=/^[a-z]{2,3}(-[a-zA-Z]+)?$/.test(sub.language)?sub.language:'en';track.src=sub.url;track.dataset.source=sub.url;track.default=/^en(g)?$/i.test(sub.language||'');
+    track.addEventListener('error',()=>{if(session!==s||track.track.mode!=='showing')return;failedSubtitle=track;subtitleMessage.textContent=track.label+' subtitles could not load from the provider.';retrySubtitles.disabled=false;subtitleNotice.hidden=false;});
+    track.addEventListener('load',()=>{if(failedSubtitle===track){failedSubtitle=null;subtitleNotice.hidden=true;retrySubtitles.disabled=false;}});video.append(track);}
   const overlay=document.createElement('div');overlay.className='video-overlay';
   const button=document.createElement('button');button.className='button primary play-episode';button.textContent=`▶ Play episode ${episode.number}`;
   const hint=document.createElement('p');hint.className='video-hint';hint.setAttribute('role','status');hint.textContent=resumeAt>0?'Continue from where you left off.':'Press Play to start the video.';
@@ -55,7 +62,7 @@ export async function setEpisode({anime,episode,resumeAt=0,onProgress}){
     skipButtons.append(manual);manualButtons[kind]=manual;
   }
   const skipNote=document.createElement('span');skipNote.className='skip-availability';skipNote.textContent=source.skip?.intro||source.skip?.outro?'Skip timings available': 'No skip timings available for this episode.';
-  skipControls.append(skipNote);$('#player').after(skipControls);
+  skipControls.append(skipNote,subtitleNotice);$('#player').after(skipControls);
   video.tabIndex=0;video.setAttribute('aria-label','Episode player. Click or press Space to pause or resume. Right Arrow: forward 5 seconds. Left Arrow: back 5 seconds.');video.setAttribute('aria-keyshortcuts','Space k ArrowRight ArrowLeft');
   function seekTo(value){
     if(!alive()||!Number.isFinite(video.duration)||!Number.isFinite(value))return;
@@ -109,7 +116,7 @@ export async function setEpisode({anime,episode,resumeAt=0,onProgress}){
     }
     video.dispatchEvent(new Event('qualitychange'));
   }};
-  detachControls=attachVideoControls($('#player'),video,source.skip,seekTo,message=>fail(message),qualityApi,source);
+  detachControls=attachVideoControls($('#player'),video,source.skip,seekTo,message=>fail(message),qualityApi);
   if(source.kind==='hls'){
     if(window.Hls?.isSupported()){video.dataset.engine='hls.js';hls=new window.Hls({...adaptiveConfig(navigator.connection),startPosition:resumeAt>0?resumeAt:-1});hls.on(window.Hls.Events.MANIFEST_PARSED,()=>{if(!alive())return;qualityOptions=hlsQualities(hls.levels);video.dispatchEvent(new Event('qualitychange'));});const recover=streamRecovery(hls);hls.on(window.Hls.Events.ERROR,(_,data)=>{if(!alive()||!data.fatal)return;if(recover(data)){loading();status.textContent='Reconnecting to the video...';}else fail(`Video could not load: ${data.details}. Reload the video to retry.`);});detachMonitor=monitorPlayback(video,hls,()=>selectedQuality==='auto'&&!failed,cap=>{if(alive())status.textContent=cap>=0?'Auto quality adjusted for smoother playback.':'Auto quality can increase as the connection improves.';});hls.loadSource(source.url);hls.attachMedia(video);}
     else if(video.canPlayType('application/vnd.apple.mpegurl')){video.dataset.engine='native';video.src=source.url;}
